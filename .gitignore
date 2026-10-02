@@ -16,3 +16,6 @@ next-env.d.ts
 .env.local
 .env*.local
 tsconfig.tsbuildinfo
+
+# Packaged seed output: business data, never committed
+out/
