@@ -1,0 +1,8 @@
+# Business data never goes in git: revenue, payouts and client records live in the app's database.
+data/
+*.xlsx
+*.csv
+# local tooling
+node_modules/
+__pycache__/
+.DS_Store
