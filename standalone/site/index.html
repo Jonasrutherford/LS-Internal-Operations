@@ -346,8 +346,9 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
         'text-transform:uppercase;color:var(--ink-3,#8387b5)">Lucid Studio</div>' +
         '<h1 style="font-family:var(--f-display,system-ui);margin:4px 0 10px;font-size:22px">Load your data</h1>' +
         '<p style="margin:0 0 16px;font-size:13.5px;color:var(--ink-2,#b4b7dc);line-height:1.5">' +
-        'This browser has no Lucid OS data yet. Choose the seed file to load it. It stays in this ' +
-        'browser only and is never uploaded or committed to the repository.</p>' +
+        'No data in this browser yet. Load the seed file once and it stays: this screen will not ' +
+        'come back on this browser until you wipe it from Settings. The file never leaves your ' +
+        'machine and is never committed to the repository.</p>' +
         '<input type="file" accept="application/json,.json" id="lucid-seed-file" style="width:100%">' +
         '<p id="lucid-seed-msg" style="margin:12px 0 0;font-size:13px;color:var(--crit,#ff6b57)"></p>'
       );
@@ -387,11 +388,34 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
     await askForData();
   })();
 
-  /* Lets you clear this browser's copy from the console: __lucidReset() */
-  window.__lucidReset = () => {
-    localStorage.removeItem(KEY);
+  /* Wipe this browser's copy. Exposed on the page as a button, and callable from
+   * the console as __lucidReset(). Asks first, because it cannot be undone from
+   * here: the data would have to be loaded again from the seed file. */
+  window.__lucidReset = (skipConfirm) => {
+    if (!skipConfirm && !confirm('Wipe all Lucid data from this browser? You will need the seed file to load it again.')) return;
+    try { localStorage.removeItem(KEY); } catch (e) { /* nothing stored */ }
     location.reload();
   };
+
+  /* Small persistent control, bottom left, out of the way of the app's own UI. */
+  function mountWipeControl() {
+    if (document.getElementById('lucid-wipe')) return;
+    const b = document.createElement('button');
+    b.id = 'lucid-wipe';
+    b.type = 'button';
+    b.textContent = 'Wipe local data';
+    b.title = 'Clears the copy of Lucid data stored in this browser';
+    b.style.cssText =
+      'position:fixed;left:10px;bottom:10px;z-index:9998;font:500 11px/1 var(--f-body,system-ui);' +
+      'padding:6px 9px;border-radius:6px;cursor:pointer;opacity:.45;' +
+      'color:var(--ink-3,#8387b5);background:var(--panel,#10122c);' +
+      'border:1px solid var(--line,#262a52)';
+    b.addEventListener('mouseenter', () => { b.style.opacity = '1'; });
+    b.addEventListener('mouseleave', () => { b.style.opacity = '.45'; });
+    b.addEventListener('click', () => window.__lucidReset());
+    document.body.appendChild(b);
+  }
+  window.__lucidReady.then(mountWipeControl);
 })();
 </script>
 <script>
