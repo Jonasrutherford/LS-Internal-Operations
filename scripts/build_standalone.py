@@ -4,7 +4,10 @@ Same application code as the artifact build. The only difference is that
 standalone/claude-shim.js supplies window.claude.use('db') from browser storage,
 so the app has a database on an ordinary web host.
 
-Output: dist/standalone/index.html  (no business data is embedded)
+Output: standalone/site/index.html  (no business data is embedded)
+
+Note: this must NOT live under dist/, which .vercelignore excludes. A Vercel
+project rooted at an ignored path gets an empty directory and 404s on every URL.
 
 Usage:  python3 scripts/build_standalone.py
 """
@@ -26,7 +29,7 @@ def build():
 
     head = S('src', 'head.html').rstrip()
     scripts = ''.join(f'<script src="{u}"></script>\n' for u in CDN)
-    shim = '<script>\n' + S('standalone', 'claude-shim.js') + '</script>\n'
+    shim = '<script>\n' + S('standalone', 'shim.js') + '</script>\n'
 
     # The shim resolves once data is present, then the app boots exactly as it does
     # inside Claude. The artifact build calls boot() directly instead.
@@ -41,7 +44,7 @@ def build():
         '</body></html>\n'
     )
 
-    out_dir = os.path.join(ROOT, 'dist', 'standalone')
+    out_dir = os.path.join(ROOT, 'standalone', 'site')
     os.makedirs(out_dir, exist_ok=True)
     out = os.path.join(out_dir, 'index.html')
     open(out, 'w', encoding='utf-8').write(page)
