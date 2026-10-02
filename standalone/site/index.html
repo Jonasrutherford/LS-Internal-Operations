@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"></head><body><title>Lucid OS</title>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"></head><body><title>LS Command</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -8,13 +8,15 @@
   --bg:#f4f4f9; --panel:#ffffff; --panel-2:#ecebf5; --line:#dad9ea; --line-2:#c7c6de;
   --ink:#0b0d51; --ink-2:#44466f; --ink-3:#72749b;
   --accent:#19169a; --accent-ink:#ffffff; --accent-soft:#e6e5fa;
-  --signal:#ffbe00; --signal-ink:#0b0d51; --flare:#f25b02;
+  --signal:#f25b02; --signal-ink:#ffffff; --flare:#f25b02;
   --good:#1d7f47; --good-soft:#e2f3e8; --warn:#9a5b00; --warn-soft:#fdf0d8; --crit:#c2311d; --crit-soft:#fbe4df;
   --s1:#3d3ad0; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#8a5cc7; --s8:#e34948;
   --div-neg:#c2311d; --div-mid:#b9b8cc; --div-pos:#3d3ad0;
   --f-display:"Outfit", "Avenir Next", "Segoe UI", system-ui, sans-serif;
   --f-body:"Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
   --f-mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Lucid orange heat ramp, used by every heatmap. */
+  --heat-0:#fdf1e9; --heat-1:#f8b588; --heat-2:#f25b02; --heat-3:#b63f00;
   --r:10px; --r-sm:6px;
   --shadow:0 1px 2px rgba(11,13,81,.06), 0 8px 24px rgba(11,13,81,.06);
 }
@@ -22,18 +24,20 @@
   --bg:#08091d; --panel:#10122c; --panel-2:#171a3a; --line:#262a52; --line-2:#343866;
   --ink:#eef0ff; --ink-2:#b4b7dc; --ink-3:#8387b5;
   --accent:#8f8cff; --accent-ink:#0b0d51; --accent-soft:#1f2156;
-  --signal:#ffbe00; --signal-ink:#0b0d51; --flare:#ff7a2e;
+  --signal:#ff7a2e; --signal-ink:#0b0d51; --flare:#ff7a2e;
   --good:#4cc47f; --good-soft:#12301f; --warn:#f0a73a; --warn-soft:#33260c; --crit:#ff6b57; --crit-soft:#3a1712;
   --s1:#6a67f0; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9d7de0; --s8:#e66767;
+  --heat-0:#1d1408; --heat-1:#6b3d14; --heat-2:#ff7a2e; --heat-3:#ffa269;
   --div-neg:#ff6b57; --div-mid:#4a4d74; --div-pos:#8f8cff;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35); color-scheme:dark }}
 :root[data-theme="dark"]{
   --bg:#08091d; --panel:#10122c; --panel-2:#171a3a; --line:#262a52; --line-2:#343866;
   --ink:#eef0ff; --ink-2:#b4b7dc; --ink-3:#8387b5;
   --accent:#8f8cff; --accent-ink:#0b0d51; --accent-soft:#1f2156;
-  --signal:#ffbe00; --signal-ink:#0b0d51; --flare:#ff7a2e;
+  --signal:#ff7a2e; --signal-ink:#0b0d51; --flare:#ff7a2e;
   --good:#4cc47f; --good-soft:#12301f; --warn:#f0a73a; --warn-soft:#33260c; --crit:#ff6b57; --crit-soft:#3a1712;
   --s1:#6a67f0; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9d7de0; --s8:#e66767;
+  --heat-0:#1d1408; --heat-1:#6b3d14; --heat-2:#ff7a2e; --heat-3:#ffa269;
   --div-neg:#ff6b57; --div-mid:#4a4d74; --div-pos:#8f8cff;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35); color-scheme:dark }
 
@@ -240,14 +244,28 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
 .kv > span:nth-child(even){text-align:right; font-variant-numeric:tabular-nums}
 .alloc{display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1.5fr) 90px 130px 32px; gap:8px; align-items:center}
 @media (max-width:640px){ .alloc{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
+
+/* Internal / External segmented control, spec section 8. */
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:var(--r-sm);overflow:hidden;margin-top:4px}
+.seg-b{border:none;border-radius:0;background:var(--panel);padding:8px 22px;font-family:var(--f-display);
+  font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);cursor:pointer}
+.seg-b + .seg-b{border-left:1px solid var(--line-2)}
+.seg-b.on{background:var(--accent);color:var(--accent-ink)}
+
+/* Running / Paused badge on the timer bar, spec section 22. */
+.state-pill{font-family:var(--f-display);font-size:10px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.state-pill.is-running{background:var(--good-soft);color:var(--good)}
+.state-pill.is-paused{background:var(--signal);color:var(--signal-ink)}
+.timer.paused .clock{opacity:.6}
 </style>
 <div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-/* Lucid OS standalone shim.
+/* LS Command standalone shim.
  *
- * Jonas's app reads its database and identity from the Claude platform via
+ * The app reads its database and identity from the Claude platform via
  * window.claude.use('db') / use('user'). Outside Claude those do not exist, which
  * is why the Vercel build previously showed only a doorway.
  *
@@ -346,7 +364,7 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
         'text-transform:uppercase;color:var(--ink-3,#8387b5)">Lucid Studio</div>' +
         '<h1 style="font-family:var(--f-display,system-ui);margin:4px 0 10px;font-size:22px">Load your data</h1>' +
         '<p style="margin:0 0 16px;font-size:13.5px;color:var(--ink-2,#b4b7dc);line-height:1.5">' +
-        'No data in this browser yet. Load the seed file once and it stays: this screen will not ' +
+        'No LS Command data in this browser yet. Load the seed file once and it stays: this screen will not ' +
         'come back on this browser until you wipe it from Settings. The file never leaves your ' +
         'machine and is never committed to the repository.</p>' +
         '<input type="file" accept="application/json,.json" id="lucid-seed-file" style="width:100%">' +
@@ -392,7 +410,7 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
    * the console as __lucidReset(). Asks first, because it cannot be undone from
    * here: the data would have to be loaded again from the seed file. */
   window.__lucidReset = (skipConfirm) => {
-    if (!skipConfirm && !confirm('Wipe all Lucid data from this browser? You will need the seed file to load it again.')) return;
+    if (!skipConfirm && !confirm('Wipe all LS Command data from this browser? You will need the seed file to load it again.')) return;
     try { localStorage.removeItem(KEY); } catch (e) { /* nothing stored */ }
     location.reload();
   };
@@ -404,7 +422,7 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
     b.id = 'lucid-wipe';
     b.type = 'button';
     b.textContent = 'Wipe local data';
-    b.title = 'Clears the copy of Lucid data stored in this browser';
+    b.title = 'Clears the copy of LS Command data stored in this browser';
     b.style.cssText =
       'position:fixed;left:10px;bottom:10px;z-index:9998;font:500 11px/1 var(--f-body,system-ui);' +
       'padding:6px 9px;border-radius:6px;cursor:pointer;opacity:.45;' +
@@ -419,7 +437,7 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
 })();
 </script>
 <script>
-/* ================================================================ Lucid OS core */
+/* ================================================================ LS Command core */
 const S = {
   ready:false, db:null, user:null, mcp:null, dl:null, sample:null,
   me:{id:null, name:'', avatarUrl:'', isOwner:false},
@@ -579,8 +597,25 @@ function hoursFor(m, personId){
   const rows = laborRows().filter(r => r.personId === personId && inRange(r.date, from, to) && r.payoutEligible);
   return { approved: sum(rows.filter(r => r.status === 'approved'), r => r.minutes), pending: sum(rows.filter(r => r.status !== 'approved'), r => r.minutes) };
 }
+/* Payouts.
+ *
+ * Two regimes, because the split changed:
+ *   through 2026-09  fixed shares of total revenue, Carter 40% and Jonas 30%
+ *   from   2026-10   a 65% pool, divided by each partner's share of approved hours
+ *
+ * fixedSplit in settings holds the old percentages so historical months stay
+ * truthful instead of being recomputed under today's rules. */
+function splitRegime(m){
+  const st = S.settings;
+  const cutover = st.hoursBasedFrom || '2026-10';
+  return m < cutover ? 'fixed' : 'hours';
+}
 function payoutFor(m){
-  const st = S.settings; const basis = st.revenueBasis; const p = +st.poolPct;
+  const st = S.settings; const basis = st.revenueBasis;
+  const regime = splitRegime(m);
+  const p = regime === 'fixed'
+    ? sum(Object.values(st.fixedSplit || {}))
+    : +st.poolPct;
   const rev = periodRevenue(m, basis);
   const exp = expensesIn(m+'-01', monthEnd(m));
   const expTotal = r2(sum(exp, x => x.amount)), overhead = r2(sum(exp.filter(x => x.allocation !== 'client'), x => x.amount)), direct = r2(expTotal - overhead);
@@ -589,11 +624,24 @@ function payoutFor(m){
   const ids = partners();
   const hrsBy = ids.map(id => ({id, ...hoursFor(m, id)}));
   const totalMin = sum(hrsBy, h => h.approved);
-  const pays = splitCents(pool, hrsBy.map(h => h.approved));
-  const people = hrsBy.map((h,i) => ({...h, share: totalMin ? h.approved/totalMin : 0, payout: pays[i], perHour: h.approved ? pays[i] / (h.approved/60) : 0}));
+
+  /* Fixed regime pays the agreed percentage of revenue regardless of hours.
+     Hours regime divides the pool by each partner's share of approved hours. */
+  const weights = regime === 'fixed'
+    ? ids.map(id => (st.fixedSplit || {})[id] || 0)
+    : hrsBy.map(h => h.approved);
+  const pays = splitCents(pool, weights);
+
+  const people = hrsBy.map((h,i) => {
+    const share = regime === 'fixed'
+      ? ((st.fixedSplit || {})[h.id] || 0) / (p || 1)
+      : (totalMin ? h.approved/totalMin : 0);
+    return {...h, share, payout: pays[i], perHour: h.approved ? pays[i] / (h.approved/60) : 0};
+  });
   const retained = r2(rev.eligible - pool);
   const contribution = st.expenseTiming === 'before' ? r2(rev.eligible - expTotal - pool) : r2(retained - expTotal);
-  return {m, basis, pct:p, rev, exp, expTotal, overhead, direct, poolBase:r2(poolBase), pool, people, totalMin, unallocated: totalMin ? 0 : pool,
+  return {m, basis, pct:p, regime, rev, exp, expTotal, overhead, direct, poolBase:r2(poolBase), pool, people, totalMin,
+          unallocated: (regime === 'hours' && !totalMin) ? pool : 0,
           retained, contribution, reconstructed: m <= (st.reconstructedThrough||''), locked: S.payouts[m]?.locked ? S.payouts[m] : null};
 }
 
@@ -748,13 +796,24 @@ async function saveConfig(doc, patch, reason, label){
 }
 
 /* ================================================================ boot */
+/* Information architecture, LS Command spec section 6.
+ * Finances is admin-only and is filtered out for employees in renderRail(). */
 const NAV = [
-  ['Work', [['track','Track'],['entries','Timesheet'],['review','Review queue']]],
-  ['Insight', [['company','Company'],['me','My dashboard'],['clients','Clients'],['tasks','Task types']]],
-  ['Money', [['payouts','Payouts'],['revenue','Revenue'],['contracts','Contracts'],['expenses','Expenses']]],
-  ['System', [['settings','Settings'],['audit','Audit log']]],
+  ['Work',     [['me','Dashboard'],['track','Start / Log'],['entries','Time Log'],['board','Tasks']]],
+  ['Insight',  [['company','Performance'],['projections','Company Projections']]],
+  ['Finances', [['revenue','Revenue'],['payouts','Payouts / Expenses'],['contracts','Contracts']]],
+  ['System',   [['settings','Settings'],['admin','System Admin']]],
 ];
+/* Groups an employee never sees. Route guards in render() enforce this as well,
+ * so hiding the link is a convenience rather than the control. */
+const ADMIN_GROUPS = ['Finances'];
+const ADMIN_VIEWS = ['revenue','payouts','contracts','expenses','admin','clients','tasks','projections','audit'];
 const VIEWS = {};
+
+/* Permissions, spec section 47. Partners administer; everyone else is an employee
+ * who can log their own time and see company work, but not finances or config. */
+function isAdmin(){ const p = S.people[S.personId]; return !!p && p.role === 'partner'; }
+function canSee(view){ return isAdmin() || !ADMIN_VIEWS.includes(view); }
 
 async function boot(){
   const th = lsGet('theme', ''); if (th) document.documentElement.dataset.theme = th;
@@ -764,7 +823,7 @@ async function boot(){
   S.db = db; S.user = user;
   if (!db){ renderOutside(); return; }
   if (user){ const me = await user.me(); S.me = {id:me.id, name:me.name, avatarUrl:me.avatarUrl, isOwner:me.isOwner}; }
-  c.use('mcp').then(m => { S.mcp = m; }); c.use('downloads').then(d => { S.dl = d; }); c.use('sample').then(s => { S.sample = s; });
+  c.use('downloads').then(d => { S.dl = d; }).catch(() => {});
   subscribe();
 }
 /* Shown when the page is opened outside Claude (for example from the Vercel deployment).
@@ -773,9 +832,9 @@ const APP_URL = 'https://claude.ai/artifact/Whr8uTA7z4by3d8wvt1VcU';
 function renderOutside(){
   $('#rail').innerHTML = ''; $('#timer').innerHTML = ''; $('#who').innerHTML = '';
   $('#main').innerHTML = `<div class="gate">
-    <div class="eyebrow">Lucid Studio</div><h1 style="margin:6px 0 8px">Lucid OS runs inside Claude</h1>
-    <p class="ink2">Your timer, time entries, revenue and payouts live in the Claude-hosted app, where sign-in, ClickUp and the team database are available. This address is a doorway to it.</p>
-    <p style="margin-top:18px"><a class="btn sig" href="${APP_URL}" rel="noopener">Open Lucid OS</a></p>
+    <div class="eyebrow">Lucid Studio</div><h1 style="margin:6px 0 8px">LS Command runs inside Claude</h1>
+    <p class="ink2">This page needs its data store. Reload, and load the seed file if prompted.</p>
+    <p style="margin-top:18px"><a class="btn sig" href="${APP_URL}" rel="noopener">Open LS Command</a></p>
     <p class="muted" style="margin-top:14px">No access yet? Ask Jonas to share it with you.</p></div>`;
   document.querySelector('.app')?.style.setProperty('grid-template-columns', 'minmax(0,1fr)');
   $('#rail').hidden = true;
@@ -792,7 +851,6 @@ function subscribe(){
   S.db.collection('timers').onSnapshot(snap => { S.timers = {}; for (const d of snap.docs) S.timers[d.id] = d.data(); bump(); renderTimer(); }, onErr);
   S.db.collection('payouts').onSnapshot(snap => { S.payouts = {}; for (const d of snap.docs) S.payouts[d.id] = d.data(); bump(); }, onErr);
   S.db.collection('audit').onSnapshot(snap => { S.auditDocs = {}; for (const d of snap.docs) S.auditDocs[d.id] = d.data(); if (S.view === 'audit') bump(); }, onErr);
-  S.db.collection('sync').onSnapshot(snap => { for (const d of snap.docs) if (d.id === 'clickup') S.clickup = d.data(); bump(); }, onErr);
 }
 function resolveIdentity(){
   if (S.personId && S.people[S.personId]) return;
@@ -810,7 +868,7 @@ async function claimPerson(pid){
 
 let _rq = false;
 function scheduleRender(){ if (_rq) return; _rq = true; requestAnimationFrame(() => { _rq = false; render(); }); }
-function go(view){ if (!VIEWS[view]) view = 'track'; S.view = view; lsSet('view', view); try { history.replaceState(null, '', '#'+view); } catch {} render(); window.scrollTo(0,0); }
+function go(view){ if (!VIEWS[view]) view = 'me'; if (!canSee(view)) view = 'me'; S.view = view; lsSet('view', view); try { history.replaceState(null, '', '#'+view); } catch {} render(); window.scrollTo(0,0); }
 
 /* ================================================================ shell */
 const LOGO = `<svg viewBox="0 0 10880 4522" aria-hidden="true"><path d="M5202.67 2413.04V4521.73H4654.67V2412.51L4028.83 1594.1H5828.8L5202.67 2413.04ZM10879.5 2.48535C10683 266.354 10488.6 533.182 10488.2 533.688L9884.38 1334.97H8185C8126.01 1347.75 8081.83 1400.24 8081.83 1463.05C8081.83 1535.27 8140.25 1593.85 8212.42 1594.1H8977.79V1594.1C9152.77 1594.1 9326.05 1628.57 9487.71 1695.53C9649.37 1762.5 9796.27 1860.65 9920 1984.38C10043.7 2108.11 10141.9 2255 10208.8 2416.67C10275.8 2578.33 10310.3 2751.6 10310.3 2926.59V3188.7L10310.3 3192.8C10309.7 3366.39 10275.3 3538.21 10208.8 3698.62C10141.9 3860.28 10043.7 4007.17 9920 4130.9C9796.27 4254.64 9649.37 4352.79 9487.71 4419.75C9328.87 4485.54 9158.83 4519.96 8986.96 4521.15V4521.18H5581.3C5778.03 4257.06 5972.67 3989.98 5972.67 3989.98L6576.47 3188.7H8977.79V3188.7H8846.73C8919.11 3188.7 8977.79 3130.02 8977.79 3057.64C8977.79 2985.26 8919.11 2926.59 8846.73 2926.59H8977.79V2926.58H8081.83V2926.58C7906.84 2926.58 7733.57 2892.11 7571.91 2825.15C7410.24 2758.18 7263.35 2660.04 7139.62 2536.3C7015.89 2412.57 6917.74 2265.68 6850.77 2104.01C6784.06 1942.97 6749.61 1770.4 6749.35 1596.1H6749.34V1594.41C6749.34 1594.31 6749.34 1594.2 6749.34 1594.09H6749.34V1334.98H6749.34C6749.34 1334.74 6749.34 1334.49 6749.34 1334.25V1333.99H6749.34C6749.47 1159.34 6783.94 986.419 6850.77 825.061C6917.74 663.396 7015.89 516.504 7139.62 392.771C7263.35 269.039 7410.24 170.889 7571.91 103.926C7733.57 36.9622 7906.84 2.49607 8081.83 2.49609V2.48535H10879.5ZM1957.96 2326.61H1960.3L1727.51 3195.38C1872.06 3193.18 2813.95 3179.57 2992.55 3195.67C3186.12 3213.12 3296.79 3212.28 3474.59 3282.88C3661.61 3357.13 3762.61 3424.74 3903.49 3568.41C4056.27 3724.21 4121.73 3839.43 4195.5 4044.79C4259.29 4222.38 4267.11 4337.39 4276.23 4521.18H28.0117L28.0137 4521.17H0L588.031 2326.61H589.033L626.348 2187.35C626.575 2186.44 891.661 1129.79 958.588 947.412C1025.54 764.961 1053.38 657.841 1167.58 504.367C1287.7 342.94 1374.23 251.877 1549.47 152.981C1739.5 45.7348 1872 11.3005 2090.12 5.22168C2277.5 -0.000243851 2402.08 4.20481e-07 2578.48 0L1957.96 2326.61ZM6029.2 1331.99H3828.39L2811.69 2.46289L7045.7 2.46191L6029.2 1331.99Z"/></svg>`;
@@ -818,22 +876,26 @@ function renderShell(){
   $('#root').innerHTML = `<div class="app">
     <header class="strip"><div class="brand">${LOGO}<b>Lucid <span>OS</span></b></div><div class="timer" id="timer"></div><div class="who" id="who"></div></header>
     <nav class="rail" id="rail"></nav>
-    <main id="main"><div class="empty">Loading Lucid OS…</div></main></div><div id="modal"></div>`;
+    <main id="main"><div class="empty">Loading LS Command…</div></main></div><div id="modal"></div>`;
   document.addEventListener('click', onClick);
   document.addEventListener('change', onChange);
   document.addEventListener('keydown', onKey);
   document.addEventListener('visibilitychange', onVisibility);
-  const h = (location.hash||'').slice(1); S.view = VIEWS[h] ? h : lsGet('view', 'track');
+  const h = (location.hash||'').slice(1); S.view = VIEWS[h] ? h : lsGet('view', 'me');
   UI.tick = setInterval(tick, 1000);
 }
 function renderRail(){
   const rv = S.personId && S.loaded.entries ? reviewItems() : null;
-  $('#rail').innerHTML = NAV.map(([g, items]) => `<div class="grp eyebrow">${g}</div>` + items.map(([id, label]) => {
-    let badge = '';
-    if (id === 'review' && rv?.total) badge = `<span class="badge">${rv.total}</span>`;
-    if (id === 'entries' && rv?.approve.length) badge = `<span class="badge">${rv.approve.length} to approve</span>`;
-    return `<a href="#${id}" data-go="${id}" class="${S.view===id?'on':''}">${label}${badge}</a>`;
-  }).join('')).join('') + `<div class="kbd"><kbd>⌘</kbd> <kbd>K</kbd> jump anywhere</div>`;
+  const admin = isAdmin();
+  $('#rail').innerHTML = NAV.filter(([g]) => admin || !ADMIN_GROUPS.includes(g)).map(([g, items]) => {
+    const visible = items.filter(([id]) => admin || !ADMIN_VIEWS.includes(id));
+    if (!visible.length) return '';
+    return `<div class="grp eyebrow">${g}</div>` + visible.map(([id, label]) => {
+      let badge = '';
+      if (id === 'entries' && rv?.approve.length) badge = `<span class="badge">${rv.approve.length} to check</span>`;
+      return `<a href="#${id}" data-go="${id}" class="${S.view===id?'on':''}">${label}${badge}</a>`;
+    }).join('');
+  }).join('') + `<div class="kbd"><kbd>⌘</kbd> <kbd>K</kbd> jump anywhere</div>`;
   const p = S.people[S.personId];
   $('#who').innerHTML = p ? `${S.me.avatarUrl ? `<img src="${esc(S.me.avatarUrl)}" alt="">` : ''}<span>${esc(p.name)}</span><button class="tbtn" data-act="theme" title="Theme">◐</button>` : '';
 }
@@ -844,7 +906,8 @@ function render(){
   UI.charts.forEach(c => { try { c.dispose(); } catch {} }); UI.charts = [];
   const main = $('#main');
   const scroll = window.scrollY;
-  main.innerHTML = banners() + (VIEWS[S.view] || VIEWS.track)();
+  if (!canSee(S.view)) S.view = 'me';
+  main.innerHTML = banners() + (VIEWS[S.view] || VIEWS.me)();
   window.scrollTo(0, scroll);
   (VIEWS[S.view]?.after || (()=>{}))();
 }
@@ -852,8 +915,8 @@ function renderGate(){
   $('#rail').innerHTML = ''; $('#timer').innerHTML = '';
   const opts = Object.entries(S.people).filter(([,p]) => p.role === 'partner' || p.active);
   $('#main').innerHTML = `<div class="gate">
-    <div class="eyebrow">Lucid OS</div><h1 style="margin:6px 0 8px">Who's signing in?</h1>
-    <p class="ink2">Pick your name once. Lucid OS links it to your Claude account so your timer and hours follow you across devices.</p>
+    <div class="eyebrow">LS Command</div><h1 style="margin:6px 0 8px">Who's signing in?</h1>
+    <p class="ink2">Pick your name once. LS Command links it to your Claude account so your timer and hours follow you across devices.</p>
     ${!S.me.id ? `<div class="note warn">This view can't read your Claude identity, so the choice is saved in this browser only.</div>` : ''}
     <div class="people">${opts.map(([id,p]) => {
       const taken = p.userId && p.userId !== S.me.id;
@@ -887,22 +950,29 @@ function renderTimer(){
     el.innerHTML = `<div class="live"><span class="dot"></span><div class="what"><b>No timer running</b><small>Start one to capture time as you work</small></div><button class="tbtn go" data-act="start">Start timer</button></div><button class="tbtn" data-act="log">Log time</button>`;
     return;
   }
-  el.className = 'timer on' + (t.pausedAt ? ' paused' : '');
-  el.innerHTML = `<div class="live"><span class="dot"></span><div class="what"><b>${esc(t.clickupTaskName || typeName(t.typeId))}</b><small>${esc(clientName(t.clientId))} · ${esc(t.clickupTaskName ? typeName(t.typeId) : (ttype(t.typeId)?.code||''))}${t.pausedAt?' · paused':''}</small></div>
+  const paused = !!t.pausedAt;
+  el.className = 'timer on' + (paused ? ' paused' : '');
+  /* Paused state, spec section 22: say plainly that it is paused, make Resume the
+   * obvious next action, and keep Stop reachable. Switch is gone, section 15. */
+  el.innerHTML = `<div class="live"><span class="dot"></span>
+    <div class="what">
+      <b>${esc(t.taskName || typeName(t.typeId))}</b>
+      <small>${esc(t.scope === 'internal' ? 'Internal' : clientName(t.clientId))}${t.category ? ' · ' + esc(t.category) : ''}</small>
+    </div>
+    <span class="state-pill ${paused?'is-paused':'is-running'}">${paused ? 'Paused' : 'Running'}</span>
     <span class="clock" id="clock">${clockFmt(elapsedMs(t))}</span>
-    <button class="tbtn" data-act="${t.pausedAt?'resume':'pause'}">${t.pausedAt?'Resume':'Pause'}</button>
-    <button class="tbtn" data-act="switch">Switch</button>
+    <button class="tbtn ${paused?'go':''}" data-act="${paused?'resume':'pause'}">${paused?'Resume':'Pause'}</button>
     <button class="tbtn stop" data-act="stop">Stop</button></div>`;
 }
 function tick(){
   const t = S.timers[S.personId]; const c = $('#clock');
   if (t?.running && c) c.textContent = clockFmt(elapsedMs(t));
-  if (t?.running){ const m = Math.floor(elapsedMs(t)/60000); document.title = `${clockFmt(elapsedMs(t)).slice(0,-3)} · ${typeName(t.typeId)} · Lucid OS`; if (m && m % 30 === 0 && new Date().getSeconds() === 0) maybeNotify(t, m); }
-  else if (document.title !== 'Lucid OS') document.title = 'Lucid OS';
+  if (t?.running){ const m = Math.floor(elapsedMs(t)/60000); document.title = `${clockFmt(elapsedMs(t)).slice(0,-3)} · ${t.taskName || typeName(t.typeId)} · LS Command`; if (m && m % 30 === 0 && new Date().getSeconds() === 0) maybeNotify(t, m); }
+  else if (document.title !== 'LS Command') document.title = 'LS Command';
 }
 function maybeNotify(t, m){
   const st = S.settings; if (m < (st.longTimerHours||3)*60) return;
-  try { if (window.Notification?.permission === 'granted') new Notification('Lucid OS timer still running', {body:`${hm(m)} on ${typeName(t.typeId)}`}); } catch {}
+  try { if (window.Notification?.permission === 'granted') new Notification('LS Command timer still running', {body:`${hm(m)} on ${typeName(t.typeId)}`}); } catch {}
 }
 function onVisibility(){
   const t = S.timers[S.personId];
@@ -916,21 +986,25 @@ function onVisibility(){
 async function timerSet(patch){ await S.db.doc('timers/'+S.personId).set({...(S.timers[S.personId]||{}), ...patch, updatedAt:Date.now(), device:navigator.userAgent.slice(0,60)}); }
 async function startTimer(d){
   if (S.timers[S.personId]?.running){ toast('A timer is already running. Use Switch.'); return; }
-  await timerSet({running:true, start:Date.now(), pausedMs:0, pausedAt:null, clientId:d.clientId, typeId:d.typeId, clickupTaskId:d.clickupTaskId||null, clickupTaskName:d.clickupTaskName||null, note:d.note||''});
+  await timerSet({running:true, start:Date.now(), pausedMs:0, pausedAt:null, scope:d.scope||'external', clientId:d.clientId, category:d.category||null, typeId:d.typeId||null, taskName:d.taskName||null, note:''});
   toast('Timer started');
 }
 async function pauseTimer(){ const t = S.timers[S.personId]; if (t?.running && !t.pausedAt) await timerSet({pausedAt:Date.now()}); }
 async function resumeTimer(){ const t = S.timers[S.personId]; if (t?.pausedAt) await timerSet({pausedMs:(t.pausedMs||0) + (Date.now()-t.pausedAt), pausedAt:null}); }
-function stopTimer(then){
+/* Stop, spec section 17. Person, date, start, end, client and task are already
+ * known, so none of them are asked for again. Only genuinely new facts appear. */
+function stopTimer(){
   const t = S.timers[S.personId]; if (!t?.running) return;
   const end = t.pausedAt || Date.now();
-  const pausedMin = Math.round(((t.pausedMs||0))/60000);
   const ty = ttype(t.typeId);
   openEntryEditor({
-    personId:S.personId, date:dayKey(t.start), start:t.start, end, pausedMin, clientId:t.clientId, typeId:t.typeId,
-    clickupTaskId:t.clickupTaskId, clickupTaskName:t.clickupTaskName, note:t.note||'', unitType:ty?.unit||null,
-    billable: defaultBillable(t.typeId, t.clientId), payoutEligible: ty?.payoutEligible !== false, cls: ty?.cls || null, status:'draft', source:'lucid',
-  }, {fromTimer:true, then});
+    personId:S.personId, date:dayKey(t.start), start:t.start, end,
+    pausedMin: Math.round((t.pausedMs||0)/60000),
+    scope:t.scope||'external', clientId:t.clientId, category:t.category||null,
+    typeId:t.typeId, taskName:t.taskName||null, note:'', unitType:ty?.unit||null,
+    billable: defaultBillable(t.typeId, t.clientId), payoutEligible: ty?.payoutEligible !== false,
+    cls: ty?.cls || null, status:'draft', source:'lucid',
+  }, {fromTimer:true});
 }
 function defaultBillable(typeId, clientId){ const ty = ttype(typeId); return !!ty?.billable && !['internal','prospects'].includes(clientId); }
 
@@ -959,43 +1033,65 @@ function comboList(id, q){
     if (!opts.length) continue;
     html += `<div class="fam">${esc(famName(f))}</div>` + opts.map(t => { first ||= t.code; return `<div class="opt" data-pick="${id}" data-code="${t.code}"><span>${esc(t.name)}</span><small>${t.code} · per ${esc(t.unit)}</small></div>`; }).join('');
   }
-  box.innerHTML = html || `<div class="empty">No task type matches. Add one on Task types.</div>`; box.hidden = false; box.dataset.first = first || '';
+  html += `<div class="fam">Not listed</div><div class="opt" data-pick="${id}" data-code="OTHER"><span>Other</span><small>name the task yourself</small></div>`;
+  box.innerHTML = html; box.hidden = false; box.dataset.first = first || 'OTHER';
 }
 function pickType(id, code){
-  $('#'+id).value = code; const q = $('#'+id+'-q'); q.value = `${code} · ${typeName(code)}`; $(`[data-combo="${id}"] .list`).hidden = true; q.blur();
+  const other = code === 'OTHER';
+  $('#'+id).value = other ? '' : code;
+  const q = $('#'+id+'-q');
+  q.value = other ? 'Other' : `${code} · ${typeName(code)}`;
+  $(`[data-combo="${id}"] .list`).hidden = true; q.blur();
+  /* The name field exists only once Other is chosen, spec section 13. */
+  const wrap = $('#st-other-wrap');
+  if (wrap && id === 'st-type'){
+    wrap.hidden = !other;
+    if (other) setTimeout(() => $('#st-other')?.focus(), 30); else { const o = $('#st-other'); if (o) o.value = ''; }
+  }
   $('#'+id).dispatchEvent(new Event('change', {bubbles:true}));
 }
 
-/* ClickUp task picker */
-function clickupOptions(clientId, sel){
-  const tasks = (S.clickup?.tasks||[]).filter(t => !/complete|closed|done/i.test(t.status||'') || t.id === sel);
-  const listId = S.clients[clientId]?.clickupListId;
-  const scoped = listId ? tasks.filter(t => t.listId === listId) : tasks;
-  const rest = listId ? tasks.filter(t => t.listId !== listId) : [];
-  const opt = t => `<option value="${t.id}" ${t.id===sel?'selected':''}>${esc(t.name)} (${esc(t.listName||'')})</option>`;
-  return `<option value="">No ClickUp task</option>` + (scoped.length ? `<optgroup label="${esc(listId ? S.clients[clientId].name : 'Open tasks')}">${scoped.map(opt).join('')}</optgroup>` : '') + (rest.length ? `<optgroup label="Other lists">${rest.slice(0,200).map(opt).join('')}</optgroup>` : '');
-}
+/* ClickUp removed for V1, spec section 4. No sync, no task ids, no API key. */
 
 /* ---------- start sheet */
 function openStart(prefill={}){
-  const synced = S.clickup?.tasks?.length;
-  openModal(`<header><h2>Start a timer</h2><button class="btn ghost" data-act="close">Close</button></header>
+  const scope = prefill.scope || 'external';
+  UI.startScope = scope;
+  openModal(`<header><h2>Start timer</h2><button class="btn ghost" data-act="close">Close</button></header>
   <div class="body">
-    <div class="fg">
-      <label class="field"><span>Client</span><select class="in" id="st-client" autofocus>${clientOptions(prefill.clientId)}</select></label>
-      <label class="field"><span>ClickUp task</span><select class="in" id="st-cu">${synced ? clickupOptions(prefill.clientId, prefill.clickupTaskId) : '<option value="">Sync ClickUp in Settings to pick tasks</option>'}</select></label>
+    <div class="field"><span>Type of work</span>
+      <div class="seg" id="st-scope">
+        <button type="button" class="seg-b ${scope==='external'?'on':''}" data-act="scope-pick" data-scope="external">External</button>
+        <button type="button" class="seg-b ${scope==='internal'?'on':''}" data-act="scope-pick" data-scope="internal">Internal</button>
+      </div>
     </div>
-    <label class="field"><span>Task type</span>${typeCombo('st-type', prefill.typeId)}<small>Pick the most specific type. It drives benchmarks and pricing.</small></label>
-    <label class="field"><span>Note <span class="muted">(optional)</span></span><input class="in" id="st-note" value="${esc(prefill.note||'')}" placeholder="What are you working on?"></label>
+    <div id="st-fields">${startFields(scope, prefill)}</div>
     <div class="err" id="st-err"></div>
   </div>
-  <footer><span class="muted">Only client and task type are required.</span><button class="btn sig" data-act="start-go">Start timer</button></footer>`);
+  <footer><span class="muted">Three choices, then go.</span><button class="btn sig" data-act="start-go">Start timer</button></footer>`);
+}
+/* Rebuilt whenever the scope toggle changes, so the category list always matches. */
+function startFields(scope, prefill={}){
+  return `${scope === 'external' ? `<label class="field"><span>Client or lead</span><select class="in" id="st-client" autofocus>${partyOptions(prefill.clientId)}</select></label>` : ''}
+    <label class="field"><span>Category</span><select class="in" id="st-cat" ${scope==='internal'?'autofocus':''}>
+      <option value="">Choose…</option>
+      ${categoriesFor(scope).map(c => `<option value="${esc(c)}" ${c===prefill.category?'selected':''}>${esc(c)}</option>`).join('')}
+    </select></label>
+    <label class="field"><span>Task type</span>${typeCombo('st-type', prefill.typeId)}</label>
+    <label class="field" id="st-other-wrap" hidden><span>Create task name</span><input class="in" id="st-other" placeholder="Name this task"></label>`;
 }
 async function startGo(){
-  const clientId = $('#st-client').value, typeId = $('#st-type').value, cu = $('#st-cu').value;
-  if (!clientId || !typeId){ $('#st-err').textContent = 'Choose a client (or Lucid Studio internal) and a task type.'; return; }
-  const task = (S.clickup?.tasks||[]).find(t => t.id === cu);
-  closeModal(); await startTimer({clientId, typeId, clickupTaskId:cu||null, clickupTaskName:task?.name||null, note:$('#st-note')?.value});
+  const scope = UI.startScope || 'external';
+  const clientId = scope === 'external' ? ($('#st-client')?.value || '') : 'internal';
+  const category = $('#st-cat')?.value || '';
+  const typeId = $('#st-type')?.value || '';
+  const otherName = ($('#st-other')?.value || '').trim();
+  const err = $('#st-err');
+  if (scope === 'external' && !clientId){ err.textContent = 'Choose a client or lead.'; return; }
+  if (!category){ err.textContent = 'Choose a category.'; return; }
+  if (!typeId && !otherName){ err.textContent = 'Choose a task type, or pick Other and name it.'; return; }
+  closeModal();
+  await startTimer({scope, clientId, category, typeId, taskName: otherName || null});
 }
 
 /* ---------- entry editor (new, edit, stop-timer completion) */
@@ -1005,11 +1101,26 @@ function openEntryEditor(e, opts={}){
   const approvedEdit = e.id && e.status === 'approved';
   const ty = ttype(e.typeId);
   const units = S.taxonomy.stages;
+  const timed = !!opts.fromTimer;
+  /* Discrete deliverables only: calls, builds and meetings carry no unit. */
+  const DISCRETE = ['email','post','graphic','reel','newsletter','deck','shot','video','article','page'];
+  const rawUnit = e.unitType || ty?.unit || '';
+  const unit = DISCRETE.some(d => rawUnit.toLowerCase().includes(d)) ? rawUnit : '';
   const title = opts.fromTimer ? 'Wrap up this session' : e.id ? 'Edit time entry' : 'Log time';
   openModal(`<header><h2>${title}</h2><button class="btn ghost" data-act="close">Close</button></header>
   <div class="body">
     ${locked ? `<div class="note crit">${monthLabel(monthOf(e.date))} is locked for payouts. Unlock it on Payouts to change this entry.</div>` : ''}
     ${e.source === 'import' ? `<div class="note">Imported from ${esc(e.importRef||'the old log')}: “${esc(e.importRaw?.task||'')}” (${esc(e.importRaw?.category||'')}).${(e.reviewNotes||[]).length ? ' ' + esc(e.reviewNotes.join('. ')) + '.' : ''}</div>` : ''}
+    ${timed ? `
+    <div class="note" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <span><b>${esc(e.taskName || typeName(e.typeId))}</b><br><span class="muted">${esc(e.scope === 'internal' ? 'Internal' : clientName(e.clientId))}${e.category ? ' · ' + esc(e.category) : ''}</span></span>
+      <span class="eyebrow" id="ed-dur"></span>
+    </div>
+    <input type="hidden" id="ed-person" value="${esc(e.personId)}"><input type="hidden" id="ed-date" value="${esc(e.date)}">
+    <input type="hidden" id="ed-start" value="${e.start ? timeKey(e.start) : ''}"><input type="hidden" id="ed-end" value="${e.end ? timeKey(e.end) : ''}">
+    <input type="hidden" id="ed-client" value="${esc(e.clientId||'')}"><input type="hidden" id="ed-type" value="${esc(e.typeId||'')}">
+    <label class="field"><span>Paused or on a break (minutes)</span><input class="in num" type="number" min="0" id="ed-paused" value="${e.pausedMin||0}"><small>Subtracted from the session. Do not fake an end time for a break.</small></label>
+    ` : `
     <div class="fg">
       <label class="field"><span>Person</span><select class="in" id="ed-person" ${S.me.isOwner ? '' : 'disabled'}>${personOptions(e.personId, true)}</select></label>
       <label class="field"><span>Date</span><input class="in" type="date" id="ed-date" value="${esc(e.date)}"></label>
@@ -1017,28 +1128,40 @@ function openEntryEditor(e, opts={}){
       <label class="field"><span>End</span><input class="in" type="time" id="ed-end" value="${e.end ? timeKey(e.end) : ''}"></label>
       <label class="field"><span>Paused (min)</span><input class="in num" type="number" min="0" id="ed-paused" value="${e.pausedMin||0}"></label>
     </div>
-    <div class="spread"><span id="ed-dur" class="eyebrow"></span>${e.joint ? `<span class="chip acc">Joint session, counted in full for each person</span>` : ''}</div>
+    <div class="spread"><span id="ed-dur" class="eyebrow"></span></div>
     <div class="fg">
-      <label class="field"><span>Client</span><select class="in" id="ed-client">${clientOptions(e.clientId)}</select></label>
-      <label class="field"><span>ClickUp task</span><select class="in" id="ed-cu">${clickupOptions(e.clientId, e.clickupTaskId)}</select></label>
+      <label class="field"><span>Client or lead</span><select class="in" id="ed-client">${partyOptions(e.clientId)}</select></label>
+      <label class="field"><span>Category</span><select class="in" id="ed-cat"><option value="">Choose…</option>${categoriesFor(e.scope||'external').map(c => `<option value="${esc(c)}" ${c===e.category?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
     </div>
     <label class="field"><span>Task type</span>${typeCombo('ed-type', e.typeId)}</label>
+    `}
+
+    ${/* Units exist only where the task type defines one, spec section 14. The unit
+         label comes from the type and is never typed by hand. */ ''}
+    ${unit ? `<label class="field"><span>${esc(unit)} completed</span><input class="in num" type="number" min="0" step="1" id="ed-units" value="${e.units ?? ''}" placeholder="e.g. 6"></label>`
+           : `<input type="hidden" id="ed-units" value="">`}
+    <input type="hidden" id="ed-unit" value="${esc(unit || '')}">
+
     <div class="fg">
-      <label class="field"><span>Deliverables</span><input class="in num" type="number" min="0" step="0.5" id="ed-units" value="${e.units ?? ''}" placeholder="e.g. 6"></label>
-      <label class="field"><span>Unit</span><input class="in" id="ed-unit" value="${esc(e.unitType || ty?.unit || '')}"></label>
-      <label class="field"><span>Work stage</span><select class="in" id="ed-stage"><option value="">–</option>${units.map(s => `<option ${s===e.stage?'selected':''}>${s}</option>`).join('')}</select></label>
-      <label class="field"><span>Complexity</span><select class="in" id="ed-cx"><option value="">–</option>${S.taxonomy.complexity.map(s => `<option ${s===e.complexity?'selected':''}>${s}</option>`).join('')}</select></label>
-      <label class="field"><span>AI assistance</span><select class="in" id="ed-ai">${[['','–'],['none','None'],['assisted','AI-assisted'],['led','AI-led']].map(([v,l]) => `<option value="${v}" ${v===(e.ai||'')?'selected':''}>${l}</option>`).join('')}</select></label>
-      <label class="field"><span>Revision round</span><select class="in" id="ed-rev">${['','0','1','2','3+'].map(v => `<option value="${v}" ${String(e.revision ?? '')===v?'selected':''}>${v===''?'–':v==='0'?'Original':v}</option>`).join('')}</select></label>
+      <label class="field"><span>Did you complete this task?</span><select class="in" id="ed-done">
+        <option value="yes" ${e.completed !== false ? 'selected' : ''}>Yes, finished</option>
+        <option value="no" ${e.completed === false ? 'selected' : ''}>No, still in progress</option>
+      </select></label>
+      <label class="field"><span>AI assistance</span><select class="in" id="ed-ai">${[['none','None'],['assisted','AI-assisted'],['led','AI-led']].map(([v,l]) => `<option value="${v}" ${v===(e.ai||'none')?'selected':''}>${l}</option>`).join('')}</select></label>
     </div>
-    <div class="fg">
-      <label class="field"><span>Classification</span><select class="in" id="ed-cls">${[['revenue','Revenue-producing'],['support','Support'],['admin','Administrative']].map(([v,l]) => `<option value="${v}" ${v===(e.cls||ty?.cls)?'selected':''}>${l}</option>`).join('')}</select></label>
-      <label class="check"><input type="checkbox" id="ed-bill" ${e.billable?'checked':''}> Billable</label>
-      <label class="check"><input type="checkbox" id="ed-pay" ${e.payoutEligible!==false?'checked':''}> Counts toward payout hours</label>
+
+    <label class="check"><input type="checkbox" id="ed-deliv" ${e.contractDeliverable?'checked':''}> Contract deliverable</label>
+
+    <label class="check"><input type="checkbox" id="ed-joint" ${e.joint?'checked':''}> Joint task</label>
+    <div id="ed-joint-wrap" ${e.joint?'':'hidden'} style="margin:4px 0 2px 26px">
+      <span class="eyebrow">Who else worked on this</span>
+      <div class="row" style="flex-wrap:wrap;gap:12px;margin-top:6px">
+        ${Object.entries(S.people).filter(([id,p]) => id !== e.personId && p.active !== false).map(([id,p]) =>
+          `<label class="check"><input type="checkbox" class="ed-jp" value="${id}" ${(e.jointWith||[]).includes(id)?'checked':''}> ${esc(p.name)}</label>`).join('')}
+      </div>
     </div>
-    <label class="field"><span>Completion note</span><textarea class="in" id="ed-note" rows="2" placeholder="What got done">${esc(e.note||'')}</textarea></label>
-    <details ${ (e.allocations||[]).length ? 'open' : ''}><summary class="eyebrow" style="cursor:pointer">Split or parallel tasks</summary>
-      <p class="muted" style="margin:6px 0 10px">Split the session across tasks. Active minutes cannot exceed the session; whatever is left stays on the task above. Background items (an AI job, a render) are recorded but add no labor.</p>
+    <details ${ (e.allocations||[]).length ? 'open' : ''}><summary class="eyebrow" style="cursor:pointer">Parallel task</summary>
+      <p class="muted" style="margin:6px 0 10px">Something else you did alongside the main task. Minutes come out of this session; whatever is left stays on the task above.</p>
       <div id="ed-allocs" class="stack" style="gap:8px"></div>
       <button class="btn sm" data-act="alloc-add" style="margin-top:8px">Add split</button>
     </details>
@@ -1071,11 +1194,22 @@ function readEditor(){
     e.minutes = Math.max(0, Math.round((e.end - e.start)/60000) - e.pausedMin);
   } else { e.start = e.start || null; e.end = e.end || null; }
   e.clientId = $('#ed-client').value || null; e.typeId = $('#ed-type').value || null;
-  const cu = $('#ed-cu').value; e.clickupTaskId = cu || null; e.clickupTaskName = cu ? ((S.clickup?.tasks||[]).find(t => t.id===cu)?.name || e.clickupTaskName) : null;
-  const u = $('#ed-units').value; e.units = u === '' ? null : +u; e.unitType = $('#ed-unit').value || null;
-  e.stage = $('#ed-stage').value || null; e.complexity = $('#ed-cx').value || null; e.ai = $('#ed-ai').value || null;
-  const rv = $('#ed-rev').value; e.revision = rv === '' ? null : rv;
-  e.cls = $('#ed-cls').value; e.billable = $('#ed-bill').checked; e.payoutEligible = $('#ed-pay').checked; e.note = $('#ed-note').value.trim();
+  if ($('#ed-cat')) e.category = $('#ed-cat').value || null;
+  e.scope = e.clientId === 'internal' ? 'internal' : (e.scope || 'external');
+  const u = $('#ed-units')?.value; e.units = (u === '' || u == null) ? null : +u;
+  e.unitType = $('#ed-unit')?.value || null;
+  e.ai = $('#ed-ai')?.value || 'none';
+  /* Spec section 19: Contract deliverable replaces classification, billable and
+   * counts-toward-payout. Those are derived rather than asked for. */
+  e.contractDeliverable = !!$('#ed-deliv')?.checked;
+  e.completed = ($('#ed-done')?.value || 'yes') === 'yes';
+  e.joint = !!$('#ed-joint')?.checked;
+  e.jointWith = e.joint ? $$('.ed-jp').filter(c => c.checked).map(c => c.value) : [];
+  const ty0 = ttype(e.typeId);
+  e.cls = ty0?.cls || e.cls || null;
+  e.billable = e.contractDeliverable || defaultBillable(e.typeId, e.clientId);
+  e.payoutEligible = ty0?.payoutEligible !== false;
+  e.note = e.taskName || e.note || '';
   return e;
 }
 function updateDur(){
@@ -1091,7 +1225,7 @@ async function saveEditor(mode){
   if (active > e.minutes) return err.textContent = `Split minutes (${active}) are more than the session (${e.minutes}). One person can't log more labor than elapsed time.`;
   // overlap guard: the same person cannot hold two full sessions in the same minutes
   const clash = allEntries().find(x => x.personId === e.personId && x.id !== e.id && x.id !== UI.edit.mergeDelete && x.start && x.end && x.start < e.end && e.start < x.end);
-  if (clash && !UI.edit.overlapOk){ UI.edit.overlapOk = true; return err.innerHTML = `This overlaps your ${esc(timeKey(clash.start))}–${esc(timeKey(clash.end))} entry (${esc(typeName(clash.typeId))}). Multitasking belongs in one session with splits. Save again to keep both; the overlap will show in the Review queue.`; }
+  if (clash && !UI.edit.overlapOk){ UI.edit.overlapOk = true; return err.innerHTML = `This overlaps your ${esc(timeKey(clash.start))}–${esc(timeKey(clash.end))} entry (${esc(typeName(clash.typeId))}). Multitasking belongs in one session with a parallel task. Save again to keep both; the overlap will be flagged in Time Log.`; }
   let reason = $('#ed-reason')?.value?.trim() || '';
   if (prev?.status === 'approved' && !reason) return err.textContent = 'Give a reason. This entry is approved and the change affects payouts.';
   if (mode === 'submit') e.status = S.settings.approvalMode === 'self' ? 'approved' : 'submitted';
@@ -1108,7 +1242,6 @@ async function saveEditor(mode){
   const {opts} = UI.edit; closeModal();
   if (opts.fromTimer){ await S.db.doc('timers/'+S.personId).set({running:false, updatedAt:Date.now()}); UI.awayPrompt = null; UI.dismissed.long = false; }
   toast(e.status === 'submitted' ? 'Saved and submitted for approval' : e.status === 'approved' ? 'Saved' : 'Saved as draft');
-  if (opts.then === 'switch') openStart({clientId:e.clientId});
 }
 async function setStatus(ids, status, reason){
   for (const id of ids){
@@ -1122,34 +1255,8 @@ async function setStatus(ids, status, reason){
   toast(`${ids.length} ${ids.length===1?'entry':'entries'} ${status === 'submitted' ? 'submitted' : status}`);
 }
 
-/* ---------- natural-language quick log (asks Claude, you confirm) */
-async function parseQuick(text){
-  const out = $('#ql-out');
-  if (!S.sample){ out.innerHTML = `<div class="note">Quick log needs Claude access in this view. Use Log time instead.</div>`; return; }
-  out.innerHTML = `<div class="muted">Reading that…</div>`;
-  const types = Object.values(S.taxonomy.types).filter(t => t.active!==false).map(t => `${t.code}: ${t.name} (per ${t.unit})`).join('\n');
-  const cls = Object.entries(S.clients).map(([id,c]) => `${id}: ${c.name}${c.aliases?.length ? ' aka '+c.aliases.join(', ') : ''}`).join('\n');
-  const prompt = `You convert an agency team member's plain-English work note into structured time-log rows.
-Today is ${today()} (${TZ()}). Clients (id: name):\n${cls}\nTask types (code: name):\n${types}
-Return JSON: {"rows":[{"clientId":string|null,"typeId":string|null,"units":number|null,"minutes":number|null,"date":"YYYY-MM-DD"|null,"ai":"none"|"assisted"|"led"|null,"note":string}]}.
-One row per distinct task type. Use the most specific task type. "Made" usually means production, "edited" means an edit or revision task. Only set minutes if the note states a duration. Use null when unsure. Note: "${text.replace(/"/g,"'")}"`;
-  try {
-    const res = await S.sample.json(prompt, {modelTier:'quick'});
-    const rows = (res?.rows||[]).filter(r => r && (r.typeId || r.clientId));
-    UI.quick = rows.map(r => ({...r, typeId: ttype(r.typeId) ? r.typeId : null, clientId: S.clients[r.clientId] ? r.clientId : null}));
-    out.innerHTML = UI.quick.length ? `<div class="stack" style="gap:8px">${UI.quick.map((r,i) => `<div class="spread panel" style="padding:10px 12px"><span><b>${esc(typeName(r.typeId))}</b> · ${esc(clientName(r.clientId))}${r.units ? ` · ${r.units} ${esc(ttype(r.typeId)?.unit||'')}` : ''}${r.minutes ? ` · ${hm(r.minutes)}` : ''}${r.ai && r.ai!=='none' ? ' · AI-assisted' : ''}<br><span class="muted">${esc(r.note||'')}</span></span><button class="btn sm pri" data-act="ql-use" data-i="${i}">Review and save</button></div>`).join('')}</div>` : `<div class="note">Couldn't find a task in that. Try naming the client and what you made.</div>`;
-  } catch (e){
-    out.innerHTML = `<div class="note warn">${e?.code === 'not_granted' ? 'Claude access was declined for this page.' : e?.code === 'rate_limited' ? 'Too many requests. Wait a moment and try again.' : 'Could not read that note. Use Log time instead.'}</div>`;
-  }
-}
-function useQuick(i){
-  const r = UI.quick[i]; const end = Date.now(); const mins = r.minutes || 30; const d = r.date || today();
-  const endMs = d === today() ? end : zoned(d, '17:00');
-  const ty = ttype(r.typeId);
-  openEntryEditor({personId:S.personId, date:d, start:endMs - mins*60000, end:endMs, clientId:r.clientId, typeId:r.typeId, units:r.units, unitType:ty?.unit, ai:r.ai, note:r.note,
-    billable:defaultBillable(r.typeId, r.clientId), payoutEligible:true, cls:ty?.cls, status:'draft', source:'lucid'});
-  if (!r.minutes) setTimeout(() => { const er = $('#ed-err'); if (er) er.textContent = 'Check the start and end time. The note didn\'t include a duration.'; }, 50);
-}
+/* AI Quick Log removed, spec section 3. Time logging is deterministic and the
+ * product runs with no AI API key. Use Log time for anything not timed live. */
 
 /* ================================================================ shared filter + chart helpers */
 function F(){ return UI.f ||= lsGet('f', {range:'ytd', from:'', to:'', person:'all', client:'all', family:'all'}); }
@@ -1211,7 +1318,7 @@ VIEWS.track = () => {
   const run = S.timers[me]?.running;
   const dayTicks = [6,9,12,15,18,21,24];
   return `<div class="head"><div><div class="eyebrow">${esc(dateLong(t))}</div><h1>Good ${hourOf(Date.now())<12?'morning':hourOf(Date.now())<18?'afternoon':'evening'}, ${esc(person(me).name)}</h1></div>
-    <div class="row"><button class="btn" data-act="log">Log past time</button><button class="btn sig" data-act="${run?'switch':'start'}">${run?'Switch task':'Start timer'}</button></div></div>
+    <div class="row"><button class="btn" data-act="log">Log past time</button><button class="btn sig" data-act="start" ${run?'disabled title="Stop the running timer first"':''}>Start timer</button></div></div>
   <div class="band b4">
     <div><div class="k">Today</div><div class="v">${hm(sum(todays, e=>e.minutes) + (run && dayKey(S.timers[me].start)===t ? elapsedMs(S.timers[me])/60000 : 0))}</div><div class="s">${todays.length} ${todays.length===1?'entry':'entries'}</div></div>
     <div><div class="k">This week</div><div class="v">${hrs(weekMin)} h</div><div class="s">capacity ${person(me).weeklyCapacity||'–'} h</div></div>
@@ -1225,14 +1332,12 @@ VIEWS.track = () => {
         <div class="day-scale">${dayTicks.map(h => `<span>${h===24?'12a':h>12?(h-12)+'p':h===12?'12p':h+'a'}</span>`).join('')}</div>
         ${todays.length ? `<table style="margin-top:10px"><tbody>${todays.map(e => entryRow(e, {compact:true})).join('')}</tbody></table>` : `<div class="empty">Nothing logged today yet.</div>`}
       </div>
-      <div class="panel"><h3>Quick log <span class="muted">Describe the work; Claude fills the fields and you confirm</span></h3>
-        <div class="row"><input class="in" id="ql-text" placeholder="Made six custom Claude email UIs for Equipt and edited three, about 2 hours" style="flex:1"><button class="btn pri" data-act="ql-parse">Read it</button></div>
-        <div id="ql-out" style="margin-top:10px"></div>
+      <!-- AI Quick Log removed, spec section 3: the product must work with no AI API key. -->
       </div>
     </div>
     <div class="stack">
       <div class="panel"><h3>Start again</h3>${favs.length ? `<div class="stack" style="gap:6px">${favs.map(e => `<button class="btn pick" data-act="quickstart" data-c="${e.clientId}" data-t="${e.typeId}" ${run?'disabled':''}><span>${esc(typeName(e.typeId))}</span><span class="muted">${esc(clientName(e.clientId))}</span></button>`).join('')}</div>` : `<div class="muted">Your most used client and task pairs show here.</div>`}</div>
-      <div class="panel"><h3>Recent</h3>${recent.length ? `<table><tbody>${recent.map(e => entryRow(e, {compact:true, date:true})).join('')}</tbody></table>` : `<div class="muted">Entries you log in Lucid OS appear here.</div>`}</div>
+      <div class="panel"><h3>Recent</h3>${recent.length ? `<table><tbody>${recent.map(e => entryRow(e, {compact:true, date:true})).join('')}</tbody></table>` : `<div class="muted">Entries you log in LS Command appear here.</div>`}</div>
     </div>
   </div>`;
 };
@@ -1287,33 +1392,10 @@ function entryActions(e, locked){
 }
 
 /* ================================================================ REVIEW */
-VIEWS.review = () => {
-  const R = reviewItems();
-  const sec = (title, desc, items, rowFn, head) => `<div class="panel"><h3>${title} <span class="chip ${items.length?'warn':'good'}">${items.length || 'Clear'}</span></h3><p class="muted" style="margin:0 0 10px">${desc}</p>
-    ${items.length ? `<div class="tw"><table><thead><tr>${head}</tr></thead><tbody>${items.slice(0,60).map(rowFn).join('')}</tbody></table></div>${items.length>60?`<p class="muted">Showing 60 of ${items.length}.</p>`:''}` : ''}</div>`;
-  const eHead = `<th>Date</th><th>Person</th><th>Logged as</th><th>Client</th><th class="r">Hours</th><th></th>`;
-  const eRow = e => `<tr><td class="num">${dateLabel(e.date)}</td><td>${esc(person(e.personId).name)}</td><td class="wrap"><b>${esc(typeName(e.typeId))}</b><br><span class="muted">${esc(e.importRaw?.task || e.note || '')}</span>${(e.reviewNotes||[]).length?`<br><span class="chip warn">${esc(e.reviewNotes.join(' · '))}</span>`:''}</td><td>${esc(clientName(e.clientId))}</td><td class="r num">${hrs(e.minutes)}</td><td><button class="btn sm" data-act="edit" data-id="${e.id}">Fix</button>${e.needsReview && e.clientId && e.typeId ? ` <button class="btn sm ghost" data-act="mark-ok" data-id="${e.id}">Looks right</button>` : ''}</td></tr>`;
-  const oRow = o => `<tr><td class="num">${dateLabel(o.a.date)}</td><td>${esc(person(o.a.personId).name)}</td><td class="wrap">${esc(timeKey(o.a.start))}–${esc(timeKey(o.a.end))} ${esc(typeName(o.a.typeId))}<br>${esc(timeKey(o.b.start))}–${esc(timeKey(o.b.end))} ${esc(typeName(o.b.typeId))}</td><td class="r num">${o.minutes} min</td><td><button class="btn sm" data-act="edit" data-id="${o.a.id}">Edit first</button> <button class="btn sm" data-act="edit" data-id="${o.b.id}">Edit second</button> <button class="btn sm pri" data-act="merge" data-a="${o.a.id}" data-b="${o.b.id}">Merge into one session</button></td></tr>`;
-  const lRow = ({l, why}) => `<tr><td class="num">${dateLabel(l.invoiceDate||l.paidDate)}</td><td>${esc(l.clientName || clientName(l.clientId))}</td><td class="r num">${money2(l.amount)}</td><td>${esc(STATUS_LABEL[l.status]||l.status)}</td><td>${esc(why)}</td><td><button class="btn sm" data-act="fin-edit" data-k="ledger" data-id="${l.id}">Fix</button></td></tr>`;
-  const cRow = ({c, why}) => `<tr><td>${esc(clientName(c.clientId))}</td><td class="r num">${money2(c.amount)}/${esc(c.frequency)}</td><td>${esc(c.lifecycle)}</td><td class="wrap">${esc(why)}</td><td><button class="btn sm" data-act="fin-edit" data-k="contracts" data-id="${c.id}">Fix</button></td></tr>`;
-  const xRow = ({x, why}) => `<tr><td>${esc(x.vendor)}</td><td class="r num">${money2(x.amount)}</td><td class="wrap">${esc(why)}</td><td><button class="btn sm" data-act="fin-edit" data-k="expenses" data-id="${x.id}">Fix</button></td></tr>`;
-  return `<div class="head"><div><h1>Review queue</h1><p>Everything that could make a dashboard or a payout wrong. Clear these before approving a payment period.</p></div></div>
-  <div class="stack">
-    ${isPartner() ? sec('Waiting for your approval', 'Submitted by your partner. Approved time counts toward payouts.', R.approve, e => eRow(e).replace('>Fix<','>Open<'), eHead) : ''}
-    ${sec('Imported entries to confirm', 'The old log only had a category and free text. Lucid OS guessed the client and task type; these guesses were uncertain.', R.mapping, eRow, eHead)}
-    ${sec('Missing client or task type', 'Time that can\'t be traced to a client or an internal category.', R.noClient, eRow, eHead)}
-    ${sec('Overlapping time', 'One person can\'t log two full sessions in the same minutes. Merge them into one session with splits, or correct the times.', R.overlap, oRow, `<th>Date</th><th>Person</th><th>Entries</th><th class="r">Overlap</th><th></th>`)}
-    ${sec('Possible duplicates', 'Same person, identical start and end.', R.dupes, oRow, `<th>Date</th><th>Person</th><th>Entries</th><th class="r">Overlap</th><th></th>`)}
-    ${sec('Missing deliverable count', 'Revenue work with no unit count can\'t feed task benchmarks.', R.units, eRow, eHead)}
-    ${sec('Unusually long entries', `Sessions over ${Math.round((S.settings.longTimerHours||3)*1.7)} hours. Often a forgotten timer.`, R.long, eRow, eHead)}
-    ${sec('Revenue without a client or contract', 'Payments that can\'t be traced to a client, project or contract.', R.orphanRev, lRow, `<th>Date</th><th>Client</th><th class="r">Amount</th><th>Status</th><th>Issue</th><th></th>`)}
-    ${sec('Revenue status problems', 'Status and dates disagree, or an invoice has been open a long time.', R.revStatus, lRow, `<th>Date</th><th>Client</th><th class="r">Amount</th><th>Status</th><th>Issue</th><th></th>`)}
-    ${sec('Contracts to check', 'Missing end or renewal dates, or flagged during import.', R.contracts, cRow, `<th>Client</th><th class="r">Amount</th><th>Lifecycle</th><th>Issue</th><th></th>`)}
-    ${sec('Expenses to check', 'Flagged records.', R.expenses, xRow, `<th>Vendor</th><th class="r">Amount</th><th>Issue</th><th></th>`)}
-  </div>`;
-};
+/* Review queue removed, spec section 25. The useful checks it performed now
+ * surface inside Time Log for admins, and reviewItems() still feeds the
+ * 'to check' badge there. No route, no nav item, no dead buttons. */
 
-/* ================================================================ COMPANY DASHBOARD */
 function goalStats(){
   const st = S.settings, y = String(st.goalYear || today().slice(0,4)), t = today();
   const from = y+'-01-01', end = y+'-12-31';
@@ -1448,7 +1530,7 @@ CHARTS.cal = () => {
   const by = groupBy(rows, r => r.date); const data = Object.entries(by).map(([d, rs]) => [d, r2(sum(rs, r=>r.minutes)/60)]);
   const first = rows.length ? rows.map(r=>r.date).sort()[0].slice(0,7)+'-01' : y+'-01-01';
   return {...b, tooltip:{...b.tooltip, trigger:'item', formatter:p => `${dateLong(p.value[0])}<br><b>${p.value[1]} h</b>`},
-    visualMap:{min:0, max:Math.max(4, ...data.map(d=>d[1])), show:false, inRange:{color:[cssv('--accent-soft'), cssv('--s1')]}},
+    visualMap:{min:0, max:Math.max(4, ...data.map(d=>d[1])), show:false, inRange:{color:[cssv('--heat-0'), cssv('--heat-1'), cssv('--heat-2'), cssv('--heat-3')]}},
     calendar:{range:[first, y+'-12-31'], cellSize:['auto', 15], left:36, right:10, top:22, itemStyle:{borderColor:cssv('--panel'), borderWidth:2, color:cssv('--panel-2')}, splitLine:{show:false},
       yearLabel:{show:false}, dayLabel:{color:cssv('--ink-3'), fontSize:10, nameMap:['S','M','T','W','T','F','S']}, monthLabel:{color:cssv('--ink-3'), fontSize:11}},
     series:[{type:'heatmap', coordinateSystem:'calendar', data}]};
@@ -1527,7 +1609,7 @@ CHARTS.meHeat = () => {
   return {...b, tooltip:{...b.tooltip, trigger:'item', formatter:p => `${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][p.value[1]]} ${p.value[0]}:00<br><b>${p.value[2]} h</b> started`},
     grid:{...b.grid, top:8}, xAxis:{type:'category', data:[...Array(24).keys()].map(h => h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p'), ...b._ax, splitLine:{show:false}},
     yAxis:{type:'category', data:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], inverse:true, ...b._ax, splitLine:{show:false}},
-    visualMap:{min:0, max:Math.max(1,...data.map(d=>d[2])), show:false, inRange:{color:[cssv('--accent-soft'), cssv('--s1')]}},
+    visualMap:{min:0, max:Math.max(1,...data.map(d=>d[2])), show:false, inRange:{color:[cssv('--heat-0'), cssv('--heat-1'), cssv('--heat-2'), cssv('--heat-3')]}},
     series:[{type:'heatmap', data, itemStyle:{borderColor:cssv('--panel'), borderWidth:2, borderRadius:3}}]};
 };
 
@@ -1569,7 +1651,7 @@ VIEWS.clients = () => {
   <div class="panel"><h3>Portfolio <span class="muted">labor hours vs paid revenue · bubble size is contribution dollars · color is contribution margin</span></h3><div class="chart tall" data-chart="quadrant"></div>
     <div class="legend"><span><i style="background:var(--div-neg)"></i>negative margin</span><span><i style="background:var(--div-mid)"></i>break-even</span><span><i style="background:var(--div-pos)"></i>healthy margin</span><span class="muted">Top left: efficient. Top right: high revenue, labor-heavy. Bottom right: underpriced.</span></div></div>
   <div class="tw" style="margin-top:14px"><table><thead><tr><th>Client</th><th class="r">Paid</th><th class="r">Recognized</th><th class="r">A/R</th><th class="r">Contracted future</th><th class="r">Hours</th><th class="r">Rev / hr</th><th class="r">Labor cost</th><th class="r">Direct exp.</th><th class="r">Contribution</th><th class="r">Margin</th><th class="r">Units</th><th>Retainer use (this month)</th><th></th></tr></thead><tbody>
-  ${rows.map(r => `<tr><td><b>${esc(r.name)}</b>${S.clients[r.id]?.clickupListId?' <span class="chip" title="Linked to a ClickUp list">ClickUp</span>':''}</td><td class="r num">${money(r.paid)}</td><td class="r num">${money(r.recog)}</td><td class="r num">${r.ar?money(r.ar):'–'}</td><td class="r num">${r.fut?money(r.fut):'–'}</td>
+  ${rows.map(r => `<tr><td><b>${esc(r.name)}</b></td><td class="r num">${money(r.paid)}</td><td class="r num">${money(r.recog)}</td><td class="r num">${r.ar?money(r.ar):'–'}</td><td class="r num">${r.fut?money(r.fut):'–'}</td>
     <td class="r num">${hrs(r.min)}</td><td class="r num">${r.perHour!=null?money(r.perHour):'–'}</td><td class="r num">${money(r.laborCost)}</td><td class="r num">${r.direct?money(r.direct):'–'}</td>
     <td class="r num"><b>${money(r.contrib)}</b></td><td class="r num">${r.margin!=null?`<span class="chip ${r.margin<0?'crit':r.margin<.3?'warn':'good'}">${pct(r.margin)}</span>`:'–'}</td><td class="r num">${r.units||'–'}</td>
     <td>${r.planned ? `<div class="num" style="font-size:12px">${hrs(r.monthMin)} of ${r.planned} h</div><div class="meter"><i style="width:${Math.min(100, r.monthMin/60/r.planned*100)}%; ${r.monthMin/60>r.planned?'background:var(--crit)':''}"></i></div>` : `<span class="muted">${hrs(r.monthMin)} h · no plan set</span>`}</td>
@@ -1815,13 +1897,12 @@ async function saveFinForm(clearFlag, del){
 
 /* ---------- client + task type editors */
 function openClient(id){
-  const c = id ? clone(S.clients[id]) : {name:'', aliases:[], active:true, kind:'client', clickupListId:null};
+  const c = id ? clone(S.clients[id]) : {name:'', aliases:[], active:true, kind:'client'};
   UI.cl = {id, c};
-  const lists = S.clickup?.lists ? Object.entries(S.clickup.lists) : [];
   openModal(`<header><h2>${id?'Edit client':'Add client'}</h2><button class="btn ghost" data-act="close">Close</button></header><div class="body">
     <div class="fg"><label class="field"><span>Name</span><input class="in" id="cl-name" value="${esc(c.name)}"></label>
     <label class="field"><span>Kind</span><select class="in" id="cl-kind">${[['client','Client'],['prospect','Prospects / new business'],['internal','Internal']].map(([v,l]) => `<option value="${v}" ${v===c.kind?'selected':''}>${l}</option>`).join('')}</select></label>
-    <label class="field"><span>ClickUp list</span><select class="in" id="cl-list"><option value="">None</option>${lists.map(([lid,l]) => `<option value="${lid}" ${lid===c.clickupListId?'selected':''}>${esc(l.space)} / ${esc(l.name)}</option>`).join('')}${c.clickupListId && !lists.length ? `<option value="${esc(c.clickupListId)}" selected>List ${esc(c.clickupListId)}</option>` : ''}</select><small>${lists.length?'':'Sync ClickUp to pick from your lists.'}</small></label></div>
+    </div>
     <label class="field"><span>Other names used in notes</span><input class="in" id="cl-aliases" value="${esc((c.aliases||[]).join(', '))}"><small>Comma separated. Used when importing and for quick log.</small></label>
     <label class="check"><input type="checkbox" id="cl-active" ${c.active!==false?'checked':''}> Active (shows in pickers)</label><div class="err" id="cl-err"></div></div>
     <footer><span></span><button class="btn pri" data-act="client-save">Save</button></footer>`);
@@ -1829,7 +1910,7 @@ function openClient(id){
 async function saveClient(){
   const {id} = UI.cl; const name = $('#cl-name').value.trim(); if (!name) return $('#cl-err').textContent = 'Name the client.';
   const key = id || name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,30) || uid('c');
-  const c = {name, kind:$('#cl-kind').value, clickupListId:$('#cl-list').value||null, aliases:$('#cl-aliases').value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean), active:$('#cl-active').checked};
+  const c = {name, kind:$('#cl-kind').value, aliases:$('#cl-aliases').value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean), active:$('#cl-active').checked};
   await S.db.doc('config/clients').update({items:{[key]:c}}); await audit('clients', key, [{field:id?'updated':'created', from:null, to:name}], ''); closeModal(); toast('Saved');
 }
 function openType(code){
@@ -1861,8 +1942,8 @@ async function saveType(){
 
 /* ================================================================ SETTINGS */
 VIEWS.settings = () => {
-  const st = S.settings; const cu = S.clickup;
-  return `<div class="head"><div><h1>Settings</h1><p>Payout rules, people, ClickUp and data. Every change that affects payouts asks for a reason and lands in the audit log.</p></div></div>
+  const st = S.settings;
+  return `<div class="head"><div><h1>Settings</h1><p>Payout rules, people and data. Every change that affects payouts asks for a reason and lands in the audit log.</p></div></div>
   <div class="grid g2">
     <div class="panel"><h3>Payout rules</h3><div class="stack">
       <div class="fg"><label class="field"><span>Labor pool %</span><input class="in num" type="number" step="1" min="0" max="100" id="s-pool" value="${Math.round(st.poolPct*100)}"></label>
@@ -1878,14 +1959,8 @@ VIEWS.settings = () => {
       <table><thead><tr><th>Person</th><th>Role</th><th>Pool</th><th class="r">Weekly capacity</th><th>Sign-in</th></tr></thead><tbody>
       ${Object.entries(S.people).map(([id,p]) => `<tr><td><b>${esc(p.name)}</b>${id===S.personId?' <span class="chip acc">you</span>':''}</td><td>${esc(p.role)}</td><td>${p.poolMember?'✓':'–'}</td><td class="r"><input class="in num" type="number" style="width:70px" data-cap="${id}" value="${p.weeklyCapacity||0}"></td><td>${p.userId?'<span class="chip good">linked</span>':'<span class="chip">not linked</span>'}${p.userId && S.me.isOwner && id!==S.personId?` <button class="btn sm ghost" data-act="unlink" data-id="${id}">Unlink</button>`:''}</td></tr>`).join('')}
       </tbody></table>
-      <p class="muted">Contractors and interns are paid as expenses, outside the pool. Share Lucid OS with Carter as a Contributor or Editor so he can track and approve.</p>
+      <p class="muted">Contractors and interns are paid as expenses, outside the pool. Share LS Command with Carter as a Contributor or Editor so he can track and approve.</p>
       ${!S.me.id ? `<div class="row"><span class="muted">Acting as ${esc(person(S.personId).name)} in this browser.</span><button class="btn sm" data-act="switch-person">Switch</button></div>` : ''}
-    </div>
-    <div class="panel"><h3>ClickUp</h3>
-      <p class="ink2" style="margin-top:0">ClickUp stays the task manager. Lucid OS reads tasks so you can start a timer from one; time is stored only here, so nothing is ever counted twice.</p>
-      <div class="kv"><span>Last sync</span><span>${cu?.syncedAt ? new Date(cu.syncedAt).toLocaleString() + ' by ' + esc(person(cu.syncedBy).name) : 'Never'}</span><span>Tasks</span><span>${cu?.tasks?.length || 0}</span><span>Lists</span><span>${cu?.lists ? Object.keys(cu.lists).length : 0}</span></div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" data-act="cu-sync">Sync ClickUp now</button><span id="cu-msg" class="muted"></span></div>
-      <p class="muted">Synced: task ID, title, list, space, folder, status, assignees, tags and due date. ClickUp's own time estimates and tracked time aren't included in the task list feed.</p>
     </div>
     <div class="panel"><h3>Timer and reminders</h3>
       <div class="fg"><label class="field"><span>Company time zone</span><input class="in" id="s-tz" value="${esc(st.timezone)}"></label><label class="field"><span>Long session nudge (hours)</span><input class="in num" type="number" id="s-long" value="${st.longTimerHours}"></label><label class="field"><span>Forgotten timer (hours)</span><input class="in num" type="number" id="s-forgot" value="${st.forgottenTimerHours}"></label><label class="field"><span>Idle check (minutes away)</span><input class="in num" type="number" id="s-idle" value="${st.idleMinutes}"></label></div>
@@ -1895,10 +1970,10 @@ VIEWS.settings = () => {
     <div class="panel"><h3>Export and import</h3>
       <div class="row"><button class="btn" data-act="export-csv">Time entries (.csv)</button><button class="btn" data-act="export-xlsx">Full workbook (.xlsx)</button></div>
       <hr class="sep" style="margin:14px 0">
-      <label class="field"><span>Import more time log rows (.xlsx or .csv)</span><input class="in" type="file" id="imp-file" accept=".xlsx,.csv"><small>Same columns as the old log: Date, Name, Start time, End time, Category, Task. Rows already imported are skipped; new rows land in the Review queue.</small></label>
+      <label class="field"><span>Import more time log rows (.xlsx or .csv)</span><input class="in" type="file" id="imp-file" accept=".xlsx,.csv"><small>Same columns as the old log: Date, Name, Start time, End time, Category, Task. Rows already imported are skipped; new rows land in Time Log as drafts.</small></label>
       <div id="imp-msg" class="muted" style="margin-top:8px"></div>
     </div>
-    <div class="panel"><h3>Original records</h3><p class="ink2" style="margin-top:0">The spreadsheets as imported, unchanged and read-only. Lucid OS keeps its own normalized copies; these stay as the reference.</p>
+    <div class="panel"><h3>Original records</h3><p class="ink2" style="margin-top:0">The spreadsheets as imported, unchanged and read-only. LS Command keeps its own normalized copies; these stay as the reference.</p>
       <div class="row"><button class="btn" data-act="src" data-id="timelog">Time log (${'207'} rows)</button><button class="btn" data-act="src" data-id="ledger">Revenue ledger</button><button class="btn" data-act="src" data-id="contracts">Contracts</button></div></div>
   </div>`;
 };
@@ -1930,7 +2005,7 @@ async function lockPeriod(m){
   openModal(`<header><h2>Approve and lock ${monthLabel(m)}</h2><button class="btn ghost" data-act="close">Close</button></header><div class="body">
     <div class="kv"><span>Labor pool</span><span>${money2(P.pool)}</span>${P.people.map(p => `<span>${esc(person(p.id).name)}: ${hrs(p.approved)} h</span><span>${money2(p.payout)}</span>`).join('')}</div>
     ${pend ? `<div class="note warn">${hrs(pend)} hours in ${monthShort(m)} aren't approved and won't be paid in this period.</div>` : ''}
-    ${R.total ? `<div class="note">The Review queue has ${R.total} open items. Some may affect this month.</div>` : ''}
+    ${R.total ? `<div class="note">Time Log has ${R.total} entries to check. Some may affect this month.</div>` : ''}
     <label class="field"><span>Note</span><input class="in" id="lk-note" placeholder="e.g. Paid Oct 3 from Mercury"></label></div>
     <footer><span class="muted">Locking freezes entries and revenue in this month until someone unlocks it.</span><button class="btn pri" data-act="lock-go" data-m="${m}">Lock period</button></footer>`);
   UI.lockSnap = snap;
@@ -1949,12 +2024,21 @@ async function onClick(ev){
     case 'claim': await claimPerson(id); break;
     case 'theme': { const cur = document.documentElement.dataset.theme; const nx = !cur ? 'dark' : cur === 'dark' ? 'light' : ''; if (nx) document.documentElement.dataset.theme = nx; else delete document.documentElement.dataset.theme; lsSet('theme', nx); render(); break; }
     case 'start': openStart(); break;
+    case 'scope-pick': {
+      const sc = a.dataset.scope;
+      UI.startScope = sc;
+      document.querySelectorAll('#st-scope .seg-b').forEach(b => b.classList.toggle('on', b.dataset.scope === sc));
+      $('#st-fields').innerHTML = startFields(sc, {});
+      $('#st-err').textContent = '';
+      ($('#st-client') || $('#st-cat'))?.focus();
+      break;
+    }
+    case 'admin-tab': UI.adminTab = a.dataset.tab; render(); break;
     case 'start-go': await startGo(); break;
     case 'quickstart': await startTimer({clientId:a.dataset.c, typeId:a.dataset.t}); break;
     case 'pause': await pauseTimer(); break;
     case 'resume': await resumeTimer(); break;
     case 'stop': stopTimer(); break;
-    case 'switch': stopTimer('switch'); break;
     case 'log': openEntryEditor({personId:S.personId, date:today(), start:Date.now()-3600e3, end:Date.now(), status:'draft', source:'lucid', payoutEligible:true, billable:false}); break;
     case 'edit': { const e = entryById(id); if (e) openEntryEditor(e); break; }
     case 'ed-save': await saveEditor(a.dataset.status); break;
@@ -1978,8 +2062,6 @@ async function onClick(ev){
       const minutes = Math.round((end-start)/60000);
       openEntryEditor({...main, start, end, minutes, pausedMin:0, allocations:[...(main.allocations||[]), {clientId:other.clientId, typeId:other.typeId, minutes:Math.min(other.minutes, Math.round(minutes/2)), attention:'active', units:other.units||0}], _mergeFrom:other.id});
       UI.edit.mergeDelete = other.id; break; }
-    case 'ql-parse': await parseQuick($('#ql-text').value); break;
-    case 'ql-use': useQuick(+a.dataset.i); break;
     case 'dismiss': UI.dismissed[a.dataset.k] = true; render(); break;
     case 'away-keep': UI.awayPrompt = null; render(); break;
     case 'away-drop': { const t = S.timers[S.personId]; await timerSet({pausedMs:(t.pausedMs||0) + UI.awayPrompt.minutes*60000}); UI.awayPrompt = null; toast('Away time removed'); break; }
@@ -2003,7 +2085,6 @@ async function onClick(ev){
     case 'notif': try { const p = await Notification.requestPermission(); toast(p==='granted'?'Notifications on':'Notifications not allowed in this view'); } catch { toast('Notifications are not available here'); } break;
     case 'unlink': await S.db.doc('config/people').update({items:{[id]:{userId:null}}}); await audit('people', id, [{field:'userId', from:'linked', to:null}], 'Unlinked sign-in'); break;
     case 'switch-person': lsSet('actingAs', null); S.personId = null; render(); break;
-    case 'cu-sync': await syncClickUp(); break;
     case 'export-csv': await exportCSV(); break;
     case 'export-xlsx': await exportXLSX(); break;
     case 'src': await showSource(id); break;
@@ -2020,6 +2101,9 @@ async function saveRules(){
   await saveConfig('settings', patch, reason); toast(locked && impact ? 'Saved. Locked months keep their snapshots.' : 'Saved');
 }
 function onChange(ev){
+  if (ev.target.id === 'ed-joint'){ const w = $('#ed-joint-wrap'); if (w) w.hidden = !ev.target.checked; }
+  if (ev.target.id === 'ed-cat' || ev.target.id === 'ed-done'){ /* no recompute needed */ }
+
   const el = ev.target, id = el.id;
   if (id === 'f-person') setF({person:el.value}); else if (id === 'f-client') setF({client:el.value}); else if (id === 'f-family') setF({family:el.value});
   else if (id === 'f-from') setF({from:el.value}); else if (id === 'f-to') setF({to:el.value});
@@ -2029,9 +2113,7 @@ function onChange(ev){
   else if (id === 'me-person'){ UI.mePerson = el.value; render(); }
   else if (id === 'af'){ UI.af = el.value; render(); }
   else if (id === 'tq'){ UI.tq = el.value; render(); }
-  else if (id === 'st-client'){ $('#st-cu').innerHTML = S.clickup?.tasks?.length ? clickupOptions(el.value) : $('#st-cu').innerHTML; }
-  else if (id === 'st-cu'){ const t = (S.clickup?.tasks||[]).find(x => x.id === el.value); const cid = t && Object.entries(S.clients).find(([,c]) => c.clickupListId === t.listId)?.[0]; if (cid) $('#st-client').value = cid; }
-  else if (id === 'ed-client'){ $('#ed-cu').innerHTML = clickupOptions(el.value, $('#ed-cu').value); $('#ed-bill').checked = defaultBillable($('#ed-type').value, el.value); updateDur(); }
+  else if (id === 'ed-client'){ updateDur(); }
   else if (id === 'ed-type'){ const t = ttype(el.value); if (t){ $('#ed-unit').value = t.unit; $('#ed-cls').value = t.cls; $('#ed-bill').checked = defaultBillable(el.value, $('#ed-client').value); $('#ed-pay').checked = t.payoutEligible !== false; } }
   else if (id?.startsWith('ed-')) updateDur();
   else if (el.dataset.alloc){ const a = UI.edit.e.allocations[+el.dataset.alloc]; a[el.dataset.k] = el.dataset.k === 'minutes' ? Math.max(0, +el.value||0) : el.value; updateDur(); }
@@ -2074,10 +2156,9 @@ function cmdItems(){
   const run = S.timers[S.personId]?.running;
   return [...NAV.flatMap(([g, items]) => items.map(([id, label]) => ({label:'Go to ' + label, hint:g, fn:() => go(id)}))),
     {label: run ? 'Stop timer' : 'Start timer', hint:'Timer', fn:() => run ? stopTimer() : openStart()},
-    ...(run ? [{label:'Switch task', hint:'Timer', fn:() => stopTimer('switch')}] : []),
     {label:'Log past time', hint:'Timer', fn:() => openEntryEditor({personId:S.personId, date:today(), start:Date.now()-3600e3, end:Date.now(), status:'draft', source:'lucid', payoutEligible:true})},
     {label:'Add revenue', hint:'Money', fn:() => openFin('ledger')}, {label:'Add expense', hint:'Money', fn:() => openFin('expenses')},
-    {label:'Sync ClickUp', hint:'System', fn:() => syncClickUp()}, {label:'Export workbook', hint:'System', fn:() => exportXLSX()},
+    {label:'Export workbook', hint:'System', fn:() => exportXLSX()},
     ...Object.values(S.clients).slice(0).map(c => ({label:'Client: ' + c.name, hint:'Filter', fn:() => { setF({client:Object.keys(S.clients).find(k => S.clients[k]===c)}); go('company'); }}))];
 }
 function openCmd(){ UI.cmdOpen = true; openModal(`<div class="palette"><input class="in" id="cmd-q" placeholder="Jump to a page or action" autofocus style="border:0; border-bottom:1px solid var(--line); border-radius:0; padding:14px"><div id="cmd" style="max-height:50vh; overflow-y:auto"></div></div>`); renderCmd(''); }
@@ -2085,36 +2166,9 @@ function renderCmd(q){ q = q.toLowerCase(); UI.cmdList = cmdItems().filter(x => 
   $('#cmd').innerHTML = UI.cmdList.map((x,i) => `<div class="opt ${i===0?'hi':''}" data-act="cmd" data-i="${i}"><span>${esc(x.label)}</span><span class="muted">${esc(x.hint)}</span></div>`).join(''); }
 document.addEventListener('click', ev => { const o = ev.target.closest('[data-act="cmd"]'); if (!o) return; const x = UI.cmdList[+o.dataset.i]; UI.cmdOpen = false; closeModal(); x?.fn(); }, true);
 
-/* ---------- ClickUp sync (runs with the viewer's own ClickUp connector) */
-async function syncClickUp(){
-  const msg = $('#cu-msg'); const say = t => { if (msg) msg.textContent = t; else toast(t); };
-  if (!S.mcp){ say('ClickUp isn\'t reachable from this view.'); return; }
-  say('Syncing…');
-  try {
-    const st = S.settings.clickup || {};
-    const lists = {};
-    try {
-      const h = (await S.mcp.callTool('ClickUp', 'clickup_get_workspace_hierarchy', {max_depth:'2', limit:50})).payload;
-      const walk = (n, space, folder) => { for (const c of n.children||[]){ if (c.type==='space') walk(c, c.name, null); else if (c.type==='folder') walk(c, space, c.name); else if (c.type==='list') lists[c.id] = {name:c.name.trim(), space, folder}; } };
-      walk(h?.hierarchy?.root || {}, null, null);
-    } catch (e){ console.warn('hierarchy', e); }
-    const tasks = []; let page = 0, more = true;
-    while (more && page < 15){
-      const p = (await S.mcp.callTool('ClickUp', 'clickup_filter_tasks', {space_ids: st.spaceIds || undefined, include_closed:false, subtasks:true, page})).payload;
-      for (const t of p?.tasks||[]) tasks.push({id:t.id, name:t.name, status:t.status, url:t.url, listId:t.list?.id, listName:t.list?.name?.trim(), space:lists[t.list?.id]?.space||null, folder:lists[t.list?.id]?.folder||null,
-        assignees:(t.assignees||[]).map(a => ({id:String(a.id), name:a.username})), tags:(t.tags||[]).map(x => x.name||x), due:t.due_date ? new Date(+t.due_date).toISOString().slice(0,10) : null, updated:t.date_updated ? +t.date_updated : null});
-      more = !!p?.has_more; page = p?.next_page ?? page+1;
-    }
-    await S.db.doc('sync/clickup').set({syncedAt:Date.now(), syncedBy:S.personId, tasks:tasks.slice(0,900), lists});
-    say(`Synced ${tasks.length} tasks from ${Object.keys(lists).length} lists.`);
-  } catch (e){
-    const m = {needs_reauth:'Reconnect ClickUp in claude.ai Settings → Connectors.', server_not_connected:'Add the ClickUp connector in claude.ai Settings → Connectors.', not_in_manifest:'ClickUp access was declined for this page.', selection_required:'Choose which ClickUp connection to use when Claude asks.', server_unavailable:'ClickUp didn\'t answer. Try again in a minute.', blocked_by_policy:'Your organization blocks this ClickUp tool.'}[e?.code];
-    say(m || ('ClickUp sync failed: ' + (e?.message || 'unknown error')));
-  }
-}
+/* ClickUp sync removed for V1, spec section 4. */
 
-/* ---------- export */
-function entryExportRows(){ return allEntries().map(e => ({Date:e.date, Person:person(e.personId).name, Start:e.start?timeKey(e.start):'', End:e.end?timeKey(e.end):'', Minutes:e.minutes, Hours:+hrs(e.minutes), Client:clientName(e.clientId), 'Service family':famName(famOf(e.typeId)), 'Task code':e.typeId||'', 'Task type':typeName(e.typeId), Units:e.units??'', Unit:e.unitType||'', Stage:e.stage||'', Complexity:e.complexity||'', AI:e.ai||'', Revision:e.revision??'', Billable:e.billable?'yes':'no', 'Payout eligible':e.payoutEligible!==false?'yes':'no', Class:e.cls||'', Status:e.status, Joint:e.joint?'yes':'', 'ClickUp task':e.clickupTaskName||'', 'ClickUp ID':e.clickupTaskId||'', Splits:(e.allocations||[]).map(a => `${a.typeId} ${a.minutes}m ${a.attention}`).join('; '), Note:e.note||'', Source:e.source, 'Import ref':e.importRef||''})); }
+function entryExportRows(){ return allEntries().map(e => ({Date:e.date, Person:person(e.personId).name, Start:e.start?timeKey(e.start):'', End:e.end?timeKey(e.end):'', Minutes:e.minutes, Hours:+hrs(e.minutes), Client:clientName(e.clientId), 'Service family':famName(famOf(e.typeId)), 'Task code':e.typeId||'', 'Task type':typeName(e.typeId), Units:e.units??'', Unit:e.unitType||'', Stage:e.stage||'', Complexity:e.complexity||'', AI:e.ai||'', Revision:e.revision??'', Billable:e.billable?'yes':'no', 'Payout eligible':e.payoutEligible!==false?'yes':'no', Class:e.cls||'', Status:e.status, Joint:e.joint?'yes':'', Splits:(e.allocations||[]).map(a => `${a.typeId} ${a.minutes}m ${a.attention}`).join('; '), Note:e.note||'', Source:e.source, 'Import ref':e.importRef||''})); }
 async function saveFile(filename, data){
   if (!S.dl){ toast('Downloads aren\'t available in this view'); return; }
   try { await S.dl.save({filename, data}); } catch (e){ if (e?.code !== 'declined') toast(e?.code === 'rate_limited' ? 'A save prompt is already open' : 'Could not save the file'); }
@@ -2164,9 +2218,71 @@ async function importFile(file){
       await upsertItem('entries', monthOf(d), e.id, e); existing.add(pid+'|'+start+'|'+end); added++;
     }
     await audit('import', file.name, [{field:'rows added', from:null, to:added}], `Imported ${file.name}`);
-    msg.textContent = `Added ${added} rows as drafts in the Review queue. Skipped ${skipped} (already imported or incomplete).`;
+    msg.textContent = `Added ${added} rows as drafts in Time Log. Skipped ${skipped} (already imported or incomplete).`;
   } catch (e){ msg.textContent = 'Couldn\'t read that file: ' + (e.message||''); }
 }
+
+/* ================================================================ LS Command additions */
+
+/* System Admin, spec section 45. Clients, Leads and Task types behind one
+ * restricted door, rather than loose in the sidebar for everyone to see. */
+VIEWS.admin = () => {
+  if (!isAdmin()) return `<div class="head"><div><h1>System Admin</h1><p>You do not have access to this area.</p></div></div>`;
+  const tab = UI.adminTab || 'clients';
+  const tabs = [['clients','Clients and leads'],['tasks','Task types'],['audit','Audit log']];
+  return `<div class="head"><div><h1>System Admin</h1><p>Clients, leads, task types and the change record. Admins only.</p></div></div>
+  <div class="row" style="margin-bottom:14px">${tabs.map(([v,l]) =>
+    `<button class="btn ${tab===v?'pri':''}" data-act="admin-tab" data-tab="${v}">${l}</button>`).join('')}</div>
+  <div>${(VIEWS[tab] ? VIEWS[tab]() : '')}</div>`;
+};
+VIEWS.admin.after = () => { const t = UI.adminTab || 'clients'; VIEWS[t]?.after?.(); };
+
+/* Company Projections, spec section 31. Forward-looking only: what is already
+ * contracted, what it costs to run, and what that leaves. Nothing invented. */
+VIEWS.projections = () => {
+  if (!isAdmin()) return `<div class="head"><div><h1>Company Projections</h1><p>You do not have access to this area.</p></div></div>`;
+  const rr = runRate();
+  const months = [];
+  let m = monthOf(today());
+  for (let i = 0; i < 6; i++){ months.push(m); m = addMonths(m, 1); }
+  const rows = months.map(mm => {
+    const exp = expensesIn(mm+'-01', monthEnd(mm));
+    const expTotal = r2(sum(exp, x => x.amount));
+    const rev = r2(rr.recurringMonthly || 0);
+    return {m: mm, rev, expTotal, net: r2(rev - expTotal)};
+  });
+  const anyExp = rows.some(r => r.expTotal > 0);
+  return `<div class="head"><div><h1>Company Projections</h1><p>Six months ahead, from active contracts with a fixed billing cycle. Commission and per-deliverable work is excluded rather than estimated.</p></div></div>
+  <div class="panel"><div class="tw"><table>
+    <thead><tr><th>Month</th><th class="r">Expected revenue</th><th class="r">Expected costs</th><th class="r">Net</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td>${monthLabel(r.m)}</td><td class="r num">${money2(r.rev)}</td>
+      <td class="r num">${anyExp ? money2(r.expTotal) : '<span class="muted">Insufficient data</span>'}</td>
+      <td class="r num">${anyExp ? money2(r.net) : '<span class="muted">–</span>'}</td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+};
+
+/* Tasks, spec sections 27 and 28. Work that is open, and work anyone can pick up.
+ * Kept off the personal Dashboard on purpose so that page stays usable. */
+VIEWS.board = () => {
+  const open = allEntries().filter(e => e.completed === false && !e.deleted)
+    .sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  const mine = open.filter(e => e.personId === S.personId);
+  const rest = open.filter(e => e.personId !== S.personId);
+  const table = (list, empty) => list.length ? `<div class="tw"><table>
+      <thead><tr><th>Task</th><th>Client or lead</th><th>Category</th><th>Owner</th><th>Last worked</th></tr></thead>
+      <tbody>${list.slice(0,80).map(e => `<tr>
+        <td><b>${esc(e.taskName || typeName(e.typeId))}</b></td>
+        <td>${esc(e.scope === 'internal' || e.clientId === 'internal' ? 'Internal' : clientName(e.clientId))}</td>
+        <td>${esc(e.category || '–')}</td>
+        <td>${esc(person(e.personId).name)}</td>
+        <td class="num">${dateLabel(e.date)}</td></tr>`).join('')}</tbody></table></div>`
+    : `<div class="muted">${empty}</div>`;
+  return `<div class="head"><div><h1>Tasks</h1><p>Anything stopped without being marked finished. Pick one up and start a timer on it.</p></div></div>
+  <div class="stack">
+    <div class="panel"><h3>Yours to finish <span class="chip ${mine.length?'warn':'good'}">${mine.length || 'Clear'}</span></h3>${table(mine, 'Nothing of yours is open.')}</div>
+    <div class="panel"><h3>Open across the team <span class="muted">${rest.length}</span></h3>${table(rest, 'Nothing open elsewhere.')}</div>
+  </div>`;
+};
 
 window.__lucidReady.then(boot);
 </script>

@@ -1,4 +1,4 @@
-# Lucid OS
+# LS Command
 
 Lucid Studio's internal operating system: time tracking, task visibility, clients,
 contracts, revenue, expenses and company projections.

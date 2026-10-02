@@ -1,4 +1,4 @@
-/* ================================================================ Lucid OS core */
+/* ================================================================ LS Command core */
 const S = {
   ready:false, db:null, user:null, mcp:null, dl:null, sample:null,
   me:{id:null, name:'', avatarUrl:'', isOwner:false},
@@ -158,8 +158,25 @@ function hoursFor(m, personId){
   const rows = laborRows().filter(r => r.personId === personId && inRange(r.date, from, to) && r.payoutEligible);
   return { approved: sum(rows.filter(r => r.status === 'approved'), r => r.minutes), pending: sum(rows.filter(r => r.status !== 'approved'), r => r.minutes) };
 }
+/* Payouts.
+ *
+ * Two regimes, because the split changed:
+ *   through 2026-09  fixed shares of total revenue, Carter 40% and Jonas 30%
+ *   from   2026-10   a 65% pool, divided by each partner's share of approved hours
+ *
+ * fixedSplit in settings holds the old percentages so historical months stay
+ * truthful instead of being recomputed under today's rules. */
+function splitRegime(m){
+  const st = S.settings;
+  const cutover = st.hoursBasedFrom || '2026-10';
+  return m < cutover ? 'fixed' : 'hours';
+}
 function payoutFor(m){
-  const st = S.settings; const basis = st.revenueBasis; const p = +st.poolPct;
+  const st = S.settings; const basis = st.revenueBasis;
+  const regime = splitRegime(m);
+  const p = regime === 'fixed'
+    ? sum(Object.values(st.fixedSplit || {}))
+    : +st.poolPct;
   const rev = periodRevenue(m, basis);
   const exp = expensesIn(m+'-01', monthEnd(m));
   const expTotal = r2(sum(exp, x => x.amount)), overhead = r2(sum(exp.filter(x => x.allocation !== 'client'), x => x.amount)), direct = r2(expTotal - overhead);
@@ -168,11 +185,24 @@ function payoutFor(m){
   const ids = partners();
   const hrsBy = ids.map(id => ({id, ...hoursFor(m, id)}));
   const totalMin = sum(hrsBy, h => h.approved);
-  const pays = splitCents(pool, hrsBy.map(h => h.approved));
-  const people = hrsBy.map((h,i) => ({...h, share: totalMin ? h.approved/totalMin : 0, payout: pays[i], perHour: h.approved ? pays[i] / (h.approved/60) : 0}));
+
+  /* Fixed regime pays the agreed percentage of revenue regardless of hours.
+     Hours regime divides the pool by each partner's share of approved hours. */
+  const weights = regime === 'fixed'
+    ? ids.map(id => (st.fixedSplit || {})[id] || 0)
+    : hrsBy.map(h => h.approved);
+  const pays = splitCents(pool, weights);
+
+  const people = hrsBy.map((h,i) => {
+    const share = regime === 'fixed'
+      ? ((st.fixedSplit || {})[h.id] || 0) / (p || 1)
+      : (totalMin ? h.approved/totalMin : 0);
+    return {...h, share, payout: pays[i], perHour: h.approved ? pays[i] / (h.approved/60) : 0};
+  });
   const retained = r2(rev.eligible - pool);
   const contribution = st.expenseTiming === 'before' ? r2(rev.eligible - expTotal - pool) : r2(retained - expTotal);
-  return {m, basis, pct:p, rev, exp, expTotal, overhead, direct, poolBase:r2(poolBase), pool, people, totalMin, unallocated: totalMin ? 0 : pool,
+  return {m, basis, pct:p, regime, rev, exp, expTotal, overhead, direct, poolBase:r2(poolBase), pool, people, totalMin,
+          unallocated: (regime === 'hours' && !totalMin) ? pool : 0,
           retained, contribution, reconstructed: m <= (st.reconstructedThrough||''), locked: S.payouts[m]?.locked ? S.payouts[m] : null};
 }
 

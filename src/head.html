@@ -1,4 +1,4 @@
-<title>Lucid OS</title>
+<title>LS Command</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -8,13 +8,15 @@
   --bg:#f4f4f9; --panel:#ffffff; --panel-2:#ecebf5; --line:#dad9ea; --line-2:#c7c6de;
   --ink:#0b0d51; --ink-2:#44466f; --ink-3:#72749b;
   --accent:#19169a; --accent-ink:#ffffff; --accent-soft:#e6e5fa;
-  --signal:#ffbe00; --signal-ink:#0b0d51; --flare:#f25b02;
+  --signal:#f25b02; --signal-ink:#ffffff; --flare:#f25b02;
   --good:#1d7f47; --good-soft:#e2f3e8; --warn:#9a5b00; --warn-soft:#fdf0d8; --crit:#c2311d; --crit-soft:#fbe4df;
   --s1:#3d3ad0; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100; --s5:#e87ba4; --s6:#008300; --s7:#8a5cc7; --s8:#e34948;
   --div-neg:#c2311d; --div-mid:#b9b8cc; --div-pos:#3d3ad0;
   --f-display:"Outfit", "Avenir Next", "Segoe UI", system-ui, sans-serif;
   --f-body:"Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
   --f-mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Lucid orange heat ramp, used by every heatmap. */
+  --heat-0:#fdf1e9; --heat-1:#f8b588; --heat-2:#f25b02; --heat-3:#b63f00;
   --r:10px; --r-sm:6px;
   --shadow:0 1px 2px rgba(11,13,81,.06), 0 8px 24px rgba(11,13,81,.06);
 }
@@ -22,18 +24,20 @@
   --bg:#08091d; --panel:#10122c; --panel-2:#171a3a; --line:#262a52; --line-2:#343866;
   --ink:#eef0ff; --ink-2:#b4b7dc; --ink-3:#8387b5;
   --accent:#8f8cff; --accent-ink:#0b0d51; --accent-soft:#1f2156;
-  --signal:#ffbe00; --signal-ink:#0b0d51; --flare:#ff7a2e;
+  --signal:#ff7a2e; --signal-ink:#0b0d51; --flare:#ff7a2e;
   --good:#4cc47f; --good-soft:#12301f; --warn:#f0a73a; --warn-soft:#33260c; --crit:#ff6b57; --crit-soft:#3a1712;
   --s1:#6a67f0; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9d7de0; --s8:#e66767;
+  --heat-0:#1d1408; --heat-1:#6b3d14; --heat-2:#ff7a2e; --heat-3:#ffa269;
   --div-neg:#ff6b57; --div-mid:#4a4d74; --div-pos:#8f8cff;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35); color-scheme:dark }}
 :root[data-theme="dark"]{
   --bg:#08091d; --panel:#10122c; --panel-2:#171a3a; --line:#262a52; --line-2:#343866;
   --ink:#eef0ff; --ink-2:#b4b7dc; --ink-3:#8387b5;
   --accent:#8f8cff; --accent-ink:#0b0d51; --accent-soft:#1f2156;
-  --signal:#ffbe00; --signal-ink:#0b0d51; --flare:#ff7a2e;
+  --signal:#ff7a2e; --signal-ink:#0b0d51; --flare:#ff7a2e;
   --good:#4cc47f; --good-soft:#12301f; --warn:#f0a73a; --warn-soft:#33260c; --crit:#ff6b57; --crit-soft:#3a1712;
   --s1:#6a67f0; --s2:#d95926; --s3:#199e70; --s4:#c98500; --s5:#d55181; --s6:#008300; --s7:#9d7de0; --s8:#e66767;
+  --heat-0:#1d1408; --heat-1:#6b3d14; --heat-2:#ff7a2e; --heat-3:#ffa269;
   --div-neg:#ff6b57; --div-mid:#4a4d74; --div-pos:#8f8cff;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35); color-scheme:dark }
 
@@ -240,5 +244,19 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
 .kv > span:nth-child(even){text-align:right; font-variant-numeric:tabular-nums}
 .alloc{display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1.5fr) 90px 130px 32px; gap:8px; align-items:center}
 @media (max-width:640px){ .alloc{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} }
+
+/* Internal / External segmented control, spec section 8. */
+.seg{display:inline-flex;border:1px solid var(--line-2);border-radius:var(--r-sm);overflow:hidden;margin-top:4px}
+.seg-b{border:none;border-radius:0;background:var(--panel);padding:8px 22px;font-family:var(--f-display);
+  font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);cursor:pointer}
+.seg-b + .seg-b{border-left:1px solid var(--line-2)}
+.seg-b.on{background:var(--accent);color:var(--accent-ink)}
+
+/* Running / Paused badge on the timer bar, spec section 22. */
+.state-pill{font-family:var(--f-display);font-size:10px;font-weight:600;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.state-pill.is-running{background:var(--good-soft);color:var(--good)}
+.state-pill.is-paused{background:var(--signal);color:var(--signal-ink)}
+.timer.paused .clock{opacity:.6}
 </style>
 <div id="root"></div>

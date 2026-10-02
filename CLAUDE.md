@@ -1,4 +1,4 @@
-# Lucid OS: notes for Claude
+# LS Command: notes for Claude
 
 GitHub is the source of truth. Vercel is production. Claude Artifacts are not used
 for production and are not a deployment target.
@@ -16,6 +16,12 @@ for production and are not a deployment target.
   Insufficient Data instead.
 - Every change to money or to someone else's time writes an audit row through
   `audit()` in `lib/auth.ts`.
+- Payouts have two regimes: fixed shares of revenue through 2026-09 (Carter 40%,
+  Jonas 30%), then a 65% pool split by share of approved hours from 2026-10.
+  `hoursBasedFrom` and `fixedSplit` in settings control this. Never recompute an
+  old month under today's rules.
+- Removed for V1 and not to be reintroduced: ClickUp, AI Quick Log, Switch,
+  Review Queue, compensation models, manual task units.
 - Style: plain copy, no em dashes, colors only via the CSS tokens in
   `app/globals.css`. The old yellow accent is retired; the accent is Lucid orange.
 

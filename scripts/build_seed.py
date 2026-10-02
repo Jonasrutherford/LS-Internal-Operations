@@ -357,7 +357,7 @@ people = {
  'finn': dict(name='Finn', fullName='Finn', role='contractor', poolMember=False, userId=None, clickupId=None, weeklyCapacity=8, active=False),
  'gui': dict(name='Guy', fullName='Guy Lagana', role='intern', poolMember=False, userId=None, clickupId=None, weeklyCapacity=5, active=False),
 }
-settings = dict(poolPct=0.70, revenueBasis='cash', expenseTiming='after', annualGoal=100000, goalYear=2026, period='monthly',
+settings = dict(poolPct=0.65, fixedSplit={'carter':0.40,'jonas':0.30}, hoursBasedFrom='2026-10', revenueBasis='cash', expenseTiming='after', annualGoal=100000, goalYear=2026, period='monthly',
    approvalMode='partner', timezone='America/Los_Angeles', longTimerHours=3, forgottenTimerHours=10, idleMinutes=30,
    workHours=dict(enabled=False, start='09:00', end='18:00', days=[1,2,3,4,5]), customAmounts={}, reconstructedThrough='2026-09',
    clickup=dict(workspaceId='90141089150', spaceIds=['90144952012','90144952229','90144953177','90144953217','90145032627']))

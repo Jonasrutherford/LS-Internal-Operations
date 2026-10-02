@@ -58,7 +58,7 @@ VIEWS.track = () => {
   const run = S.timers[me]?.running;
   const dayTicks = [6,9,12,15,18,21,24];
   return `<div class="head"><div><div class="eyebrow">${esc(dateLong(t))}</div><h1>Good ${hourOf(Date.now())<12?'morning':hourOf(Date.now())<18?'afternoon':'evening'}, ${esc(person(me).name)}</h1></div>
-    <div class="row"><button class="btn" data-act="log">Log past time</button><button class="btn sig" data-act="${run?'switch':'start'}">${run?'Switch task':'Start timer'}</button></div></div>
+    <div class="row"><button class="btn" data-act="log">Log past time</button><button class="btn sig" data-act="start" ${run?'disabled title="Stop the running timer first"':''}>Start timer</button></div></div>
   <div class="band b4">
     <div><div class="k">Today</div><div class="v">${hm(sum(todays, e=>e.minutes) + (run && dayKey(S.timers[me].start)===t ? elapsedMs(S.timers[me])/60000 : 0))}</div><div class="s">${todays.length} ${todays.length===1?'entry':'entries'}</div></div>
     <div><div class="k">This week</div><div class="v">${hrs(weekMin)} h</div><div class="s">capacity ${person(me).weeklyCapacity||'–'} h</div></div>
@@ -72,14 +72,12 @@ VIEWS.track = () => {
         <div class="day-scale">${dayTicks.map(h => `<span>${h===24?'12a':h>12?(h-12)+'p':h===12?'12p':h+'a'}</span>`).join('')}</div>
         ${todays.length ? `<table style="margin-top:10px"><tbody>${todays.map(e => entryRow(e, {compact:true})).join('')}</tbody></table>` : `<div class="empty">Nothing logged today yet.</div>`}
       </div>
-      <div class="panel"><h3>Quick log <span class="muted">Describe the work; Claude fills the fields and you confirm</span></h3>
-        <div class="row"><input class="in" id="ql-text" placeholder="Made six custom Claude email UIs for Equipt and edited three, about 2 hours" style="flex:1"><button class="btn pri" data-act="ql-parse">Read it</button></div>
-        <div id="ql-out" style="margin-top:10px"></div>
+      <!-- AI Quick Log removed, spec section 3: the product must work with no AI API key. -->
       </div>
     </div>
     <div class="stack">
       <div class="panel"><h3>Start again</h3>${favs.length ? `<div class="stack" style="gap:6px">${favs.map(e => `<button class="btn pick" data-act="quickstart" data-c="${e.clientId}" data-t="${e.typeId}" ${run?'disabled':''}><span>${esc(typeName(e.typeId))}</span><span class="muted">${esc(clientName(e.clientId))}</span></button>`).join('')}</div>` : `<div class="muted">Your most used client and task pairs show here.</div>`}</div>
-      <div class="panel"><h3>Recent</h3>${recent.length ? `<table><tbody>${recent.map(e => entryRow(e, {compact:true, date:true})).join('')}</tbody></table>` : `<div class="muted">Entries you log in Lucid OS appear here.</div>`}</div>
+      <div class="panel"><h3>Recent</h3>${recent.length ? `<table><tbody>${recent.map(e => entryRow(e, {compact:true, date:true})).join('')}</tbody></table>` : `<div class="muted">Entries you log in LS Command appear here.</div>`}</div>
     </div>
   </div>`;
 };
@@ -134,33 +132,10 @@ function entryActions(e, locked){
 }
 
 /* ================================================================ REVIEW */
-VIEWS.review = () => {
-  const R = reviewItems();
-  const sec = (title, desc, items, rowFn, head) => `<div class="panel"><h3>${title} <span class="chip ${items.length?'warn':'good'}">${items.length || 'Clear'}</span></h3><p class="muted" style="margin:0 0 10px">${desc}</p>
-    ${items.length ? `<div class="tw"><table><thead><tr>${head}</tr></thead><tbody>${items.slice(0,60).map(rowFn).join('')}</tbody></table></div>${items.length>60?`<p class="muted">Showing 60 of ${items.length}.</p>`:''}` : ''}</div>`;
-  const eHead = `<th>Date</th><th>Person</th><th>Logged as</th><th>Client</th><th class="r">Hours</th><th></th>`;
-  const eRow = e => `<tr><td class="num">${dateLabel(e.date)}</td><td>${esc(person(e.personId).name)}</td><td class="wrap"><b>${esc(typeName(e.typeId))}</b><br><span class="muted">${esc(e.importRaw?.task || e.note || '')}</span>${(e.reviewNotes||[]).length?`<br><span class="chip warn">${esc(e.reviewNotes.join(' · '))}</span>`:''}</td><td>${esc(clientName(e.clientId))}</td><td class="r num">${hrs(e.minutes)}</td><td><button class="btn sm" data-act="edit" data-id="${e.id}">Fix</button>${e.needsReview && e.clientId && e.typeId ? ` <button class="btn sm ghost" data-act="mark-ok" data-id="${e.id}">Looks right</button>` : ''}</td></tr>`;
-  const oRow = o => `<tr><td class="num">${dateLabel(o.a.date)}</td><td>${esc(person(o.a.personId).name)}</td><td class="wrap">${esc(timeKey(o.a.start))}–${esc(timeKey(o.a.end))} ${esc(typeName(o.a.typeId))}<br>${esc(timeKey(o.b.start))}–${esc(timeKey(o.b.end))} ${esc(typeName(o.b.typeId))}</td><td class="r num">${o.minutes} min</td><td><button class="btn sm" data-act="edit" data-id="${o.a.id}">Edit first</button> <button class="btn sm" data-act="edit" data-id="${o.b.id}">Edit second</button> <button class="btn sm pri" data-act="merge" data-a="${o.a.id}" data-b="${o.b.id}">Merge into one session</button></td></tr>`;
-  const lRow = ({l, why}) => `<tr><td class="num">${dateLabel(l.invoiceDate||l.paidDate)}</td><td>${esc(l.clientName || clientName(l.clientId))}</td><td class="r num">${money2(l.amount)}</td><td>${esc(STATUS_LABEL[l.status]||l.status)}</td><td>${esc(why)}</td><td><button class="btn sm" data-act="fin-edit" data-k="ledger" data-id="${l.id}">Fix</button></td></tr>`;
-  const cRow = ({c, why}) => `<tr><td>${esc(clientName(c.clientId))}</td><td class="r num">${money2(c.amount)}/${esc(c.frequency)}</td><td>${esc(c.lifecycle)}</td><td class="wrap">${esc(why)}</td><td><button class="btn sm" data-act="fin-edit" data-k="contracts" data-id="${c.id}">Fix</button></td></tr>`;
-  const xRow = ({x, why}) => `<tr><td>${esc(x.vendor)}</td><td class="r num">${money2(x.amount)}</td><td class="wrap">${esc(why)}</td><td><button class="btn sm" data-act="fin-edit" data-k="expenses" data-id="${x.id}">Fix</button></td></tr>`;
-  return `<div class="head"><div><h1>Review queue</h1><p>Everything that could make a dashboard or a payout wrong. Clear these before approving a payment period.</p></div></div>
-  <div class="stack">
-    ${isPartner() ? sec('Waiting for your approval', 'Submitted by your partner. Approved time counts toward payouts.', R.approve, e => eRow(e).replace('>Fix<','>Open<'), eHead) : ''}
-    ${sec('Imported entries to confirm', 'The old log only had a category and free text. Lucid OS guessed the client and task type; these guesses were uncertain.', R.mapping, eRow, eHead)}
-    ${sec('Missing client or task type', 'Time that can\'t be traced to a client or an internal category.', R.noClient, eRow, eHead)}
-    ${sec('Overlapping time', 'One person can\'t log two full sessions in the same minutes. Merge them into one session with splits, or correct the times.', R.overlap, oRow, `<th>Date</th><th>Person</th><th>Entries</th><th class="r">Overlap</th><th></th>`)}
-    ${sec('Possible duplicates', 'Same person, identical start and end.', R.dupes, oRow, `<th>Date</th><th>Person</th><th>Entries</th><th class="r">Overlap</th><th></th>`)}
-    ${sec('Missing deliverable count', 'Revenue work with no unit count can\'t feed task benchmarks.', R.units, eRow, eHead)}
-    ${sec('Unusually long entries', `Sessions over ${Math.round((S.settings.longTimerHours||3)*1.7)} hours. Often a forgotten timer.`, R.long, eRow, eHead)}
-    ${sec('Revenue without a client or contract', 'Payments that can\'t be traced to a client, project or contract.', R.orphanRev, lRow, `<th>Date</th><th>Client</th><th class="r">Amount</th><th>Status</th><th>Issue</th><th></th>`)}
-    ${sec('Revenue status problems', 'Status and dates disagree, or an invoice has been open a long time.', R.revStatus, lRow, `<th>Date</th><th>Client</th><th class="r">Amount</th><th>Status</th><th>Issue</th><th></th>`)}
-    ${sec('Contracts to check', 'Missing end or renewal dates, or flagged during import.', R.contracts, cRow, `<th>Client</th><th class="r">Amount</th><th>Lifecycle</th><th>Issue</th><th></th>`)}
-    ${sec('Expenses to check', 'Flagged records.', R.expenses, xRow, `<th>Vendor</th><th class="r">Amount</th><th>Issue</th><th></th>`)}
-  </div>`;
-};
+/* Review queue removed, spec section 25. The useful checks it performed now
+ * surface inside Time Log for admins, and reviewItems() still feeds the
+ * 'to check' badge there. No route, no nav item, no dead buttons. */
 
-/* ================================================================ COMPANY DASHBOARD */
 function goalStats(){
   const st = S.settings, y = String(st.goalYear || today().slice(0,4)), t = today();
   const from = y+'-01-01', end = y+'-12-31';
@@ -295,7 +270,7 @@ CHARTS.cal = () => {
   const by = groupBy(rows, r => r.date); const data = Object.entries(by).map(([d, rs]) => [d, r2(sum(rs, r=>r.minutes)/60)]);
   const first = rows.length ? rows.map(r=>r.date).sort()[0].slice(0,7)+'-01' : y+'-01-01';
   return {...b, tooltip:{...b.tooltip, trigger:'item', formatter:p => `${dateLong(p.value[0])}<br><b>${p.value[1]} h</b>`},
-    visualMap:{min:0, max:Math.max(4, ...data.map(d=>d[1])), show:false, inRange:{color:[cssv('--accent-soft'), cssv('--s1')]}},
+    visualMap:{min:0, max:Math.max(4, ...data.map(d=>d[1])), show:false, inRange:{color:[cssv('--heat-0'), cssv('--heat-1'), cssv('--heat-2'), cssv('--heat-3')]}},
     calendar:{range:[first, y+'-12-31'], cellSize:['auto', 15], left:36, right:10, top:22, itemStyle:{borderColor:cssv('--panel'), borderWidth:2, color:cssv('--panel-2')}, splitLine:{show:false},
       yearLabel:{show:false}, dayLabel:{color:cssv('--ink-3'), fontSize:10, nameMap:['S','M','T','W','T','F','S']}, monthLabel:{color:cssv('--ink-3'), fontSize:11}},
     series:[{type:'heatmap', coordinateSystem:'calendar', data}]};
@@ -374,6 +349,6 @@ CHARTS.meHeat = () => {
   return {...b, tooltip:{...b.tooltip, trigger:'item', formatter:p => `${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][p.value[1]]} ${p.value[0]}:00<br><b>${p.value[2]} h</b> started`},
     grid:{...b.grid, top:8}, xAxis:{type:'category', data:[...Array(24).keys()].map(h => h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p'), ...b._ax, splitLine:{show:false}},
     yAxis:{type:'category', data:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], inverse:true, ...b._ax, splitLine:{show:false}},
-    visualMap:{min:0, max:Math.max(1,...data.map(d=>d[2])), show:false, inRange:{color:[cssv('--accent-soft'), cssv('--s1')]}},
+    visualMap:{min:0, max:Math.max(1,...data.map(d=>d[2])), show:false, inRange:{color:[cssv('--heat-0'), cssv('--heat-1'), cssv('--heat-2'), cssv('--heat-3')]}},
     series:[{type:'heatmap', data, itemStyle:{borderColor:cssv('--panel'), borderWidth:2, borderRadius:3}}]};
 };

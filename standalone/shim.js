@@ -1,6 +1,6 @@
-/* Lucid OS standalone shim.
+/* LS Command standalone shim.
  *
- * Jonas's app reads its database and identity from the Claude platform via
+ * The app reads its database and identity from the Claude platform via
  * window.claude.use('db') / use('user'). Outside Claude those do not exist, which
  * is why the Vercel build previously showed only a doorway.
  *
@@ -99,7 +99,7 @@
         'text-transform:uppercase;color:var(--ink-3,#8387b5)">Lucid Studio</div>' +
         '<h1 style="font-family:var(--f-display,system-ui);margin:4px 0 10px;font-size:22px">Load your data</h1>' +
         '<p style="margin:0 0 16px;font-size:13.5px;color:var(--ink-2,#b4b7dc);line-height:1.5">' +
-        'No data in this browser yet. Load the seed file once and it stays: this screen will not ' +
+        'No LS Command data in this browser yet. Load the seed file once and it stays: this screen will not ' +
         'come back on this browser until you wipe it from Settings. The file never leaves your ' +
         'machine and is never committed to the repository.</p>' +
         '<input type="file" accept="application/json,.json" id="lucid-seed-file" style="width:100%">' +
@@ -145,7 +145,7 @@
    * the console as __lucidReset(). Asks first, because it cannot be undone from
    * here: the data would have to be loaded again from the seed file. */
   window.__lucidReset = (skipConfirm) => {
-    if (!skipConfirm && !confirm('Wipe all Lucid data from this browser? You will need the seed file to load it again.')) return;
+    if (!skipConfirm && !confirm('Wipe all LS Command data from this browser? You will need the seed file to load it again.')) return;
     try { localStorage.removeItem(KEY); } catch (e) { /* nothing stored */ }
     location.reload();
   };
@@ -157,7 +157,7 @@
     b.id = 'lucid-wipe';
     b.type = 'button';
     b.textContent = 'Wipe local data';
-    b.title = 'Clears the copy of Lucid data stored in this browser';
+    b.title = 'Clears the copy of LS Command data stored in this browser';
     b.style.cssText =
       'position:fixed;left:10px;bottom:10px;z-index:9998;font:500 11px/1 var(--f-body,system-ui);' +
       'padding:6px 9px;border-radius:6px;cursor:pointer;opacity:.45;' +

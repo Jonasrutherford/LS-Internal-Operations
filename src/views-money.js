@@ -36,7 +36,7 @@ VIEWS.clients = () => {
   <div class="panel"><h3>Portfolio <span class="muted">labor hours vs paid revenue · bubble size is contribution dollars · color is contribution margin</span></h3><div class="chart tall" data-chart="quadrant"></div>
     <div class="legend"><span><i style="background:var(--div-neg)"></i>negative margin</span><span><i style="background:var(--div-mid)"></i>break-even</span><span><i style="background:var(--div-pos)"></i>healthy margin</span><span class="muted">Top left: efficient. Top right: high revenue, labor-heavy. Bottom right: underpriced.</span></div></div>
   <div class="tw" style="margin-top:14px"><table><thead><tr><th>Client</th><th class="r">Paid</th><th class="r">Recognized</th><th class="r">A/R</th><th class="r">Contracted future</th><th class="r">Hours</th><th class="r">Rev / hr</th><th class="r">Labor cost</th><th class="r">Direct exp.</th><th class="r">Contribution</th><th class="r">Margin</th><th class="r">Units</th><th>Retainer use (this month)</th><th></th></tr></thead><tbody>
-  ${rows.map(r => `<tr><td><b>${esc(r.name)}</b>${S.clients[r.id]?.clickupListId?' <span class="chip" title="Linked to a ClickUp list">ClickUp</span>':''}</td><td class="r num">${money(r.paid)}</td><td class="r num">${money(r.recog)}</td><td class="r num">${r.ar?money(r.ar):'–'}</td><td class="r num">${r.fut?money(r.fut):'–'}</td>
+  ${rows.map(r => `<tr><td><b>${esc(r.name)}</b></td><td class="r num">${money(r.paid)}</td><td class="r num">${money(r.recog)}</td><td class="r num">${r.ar?money(r.ar):'–'}</td><td class="r num">${r.fut?money(r.fut):'–'}</td>
     <td class="r num">${hrs(r.min)}</td><td class="r num">${r.perHour!=null?money(r.perHour):'–'}</td><td class="r num">${money(r.laborCost)}</td><td class="r num">${r.direct?money(r.direct):'–'}</td>
     <td class="r num"><b>${money(r.contrib)}</b></td><td class="r num">${r.margin!=null?`<span class="chip ${r.margin<0?'crit':r.margin<.3?'warn':'good'}">${pct(r.margin)}</span>`:'–'}</td><td class="r num">${r.units||'–'}</td>
     <td>${r.planned ? `<div class="num" style="font-size:12px">${hrs(r.monthMin)} of ${r.planned} h</div><div class="meter"><i style="width:${Math.min(100, r.monthMin/60/r.planned*100)}%; ${r.monthMin/60>r.planned?'background:var(--crit)':''}"></i></div>` : `<span class="muted">${hrs(r.monthMin)} h · no plan set</span>`}</td>
@@ -282,13 +282,12 @@ async function saveFinForm(clearFlag, del){
 
 /* ---------- client + task type editors */
 function openClient(id){
-  const c = id ? clone(S.clients[id]) : {name:'', aliases:[], active:true, kind:'client', clickupListId:null};
+  const c = id ? clone(S.clients[id]) : {name:'', aliases:[], active:true, kind:'client'};
   UI.cl = {id, c};
-  const lists = S.clickup?.lists ? Object.entries(S.clickup.lists) : [];
   openModal(`<header><h2>${id?'Edit client':'Add client'}</h2><button class="btn ghost" data-act="close">Close</button></header><div class="body">
     <div class="fg"><label class="field"><span>Name</span><input class="in" id="cl-name" value="${esc(c.name)}"></label>
     <label class="field"><span>Kind</span><select class="in" id="cl-kind">${[['client','Client'],['prospect','Prospects / new business'],['internal','Internal']].map(([v,l]) => `<option value="${v}" ${v===c.kind?'selected':''}>${l}</option>`).join('')}</select></label>
-    <label class="field"><span>ClickUp list</span><select class="in" id="cl-list"><option value="">None</option>${lists.map(([lid,l]) => `<option value="${lid}" ${lid===c.clickupListId?'selected':''}>${esc(l.space)} / ${esc(l.name)}</option>`).join('')}${c.clickupListId && !lists.length ? `<option value="${esc(c.clickupListId)}" selected>List ${esc(c.clickupListId)}</option>` : ''}</select><small>${lists.length?'':'Sync ClickUp to pick from your lists.'}</small></label></div>
+    </div>
     <label class="field"><span>Other names used in notes</span><input class="in" id="cl-aliases" value="${esc((c.aliases||[]).join(', '))}"><small>Comma separated. Used when importing and for quick log.</small></label>
     <label class="check"><input type="checkbox" id="cl-active" ${c.active!==false?'checked':''}> Active (shows in pickers)</label><div class="err" id="cl-err"></div></div>
     <footer><span></span><button class="btn pri" data-act="client-save">Save</button></footer>`);
@@ -296,7 +295,7 @@ function openClient(id){
 async function saveClient(){
   const {id} = UI.cl; const name = $('#cl-name').value.trim(); if (!name) return $('#cl-err').textContent = 'Name the client.';
   const key = id || name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,30) || uid('c');
-  const c = {name, kind:$('#cl-kind').value, clickupListId:$('#cl-list').value||null, aliases:$('#cl-aliases').value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean), active:$('#cl-active').checked};
+  const c = {name, kind:$('#cl-kind').value, aliases:$('#cl-aliases').value.split(',').map(s=>s.trim().toLowerCase()).filter(Boolean), active:$('#cl-active').checked};
   await S.db.doc('config/clients').update({items:{[key]:c}}); await audit('clients', key, [{field:id?'updated':'created', from:null, to:name}], ''); closeModal(); toast('Saved');
 }
 function openType(code){
@@ -328,8 +327,8 @@ async function saveType(){
 
 /* ================================================================ SETTINGS */
 VIEWS.settings = () => {
-  const st = S.settings; const cu = S.clickup;
-  return `<div class="head"><div><h1>Settings</h1><p>Payout rules, people, ClickUp and data. Every change that affects payouts asks for a reason and lands in the audit log.</p></div></div>
+  const st = S.settings;
+  return `<div class="head"><div><h1>Settings</h1><p>Payout rules, people and data. Every change that affects payouts asks for a reason and lands in the audit log.</p></div></div>
   <div class="grid g2">
     <div class="panel"><h3>Payout rules</h3><div class="stack">
       <div class="fg"><label class="field"><span>Labor pool %</span><input class="in num" type="number" step="1" min="0" max="100" id="s-pool" value="${Math.round(st.poolPct*100)}"></label>
@@ -345,14 +344,8 @@ VIEWS.settings = () => {
       <table><thead><tr><th>Person</th><th>Role</th><th>Pool</th><th class="r">Weekly capacity</th><th>Sign-in</th></tr></thead><tbody>
       ${Object.entries(S.people).map(([id,p]) => `<tr><td><b>${esc(p.name)}</b>${id===S.personId?' <span class="chip acc">you</span>':''}</td><td>${esc(p.role)}</td><td>${p.poolMember?'✓':'–'}</td><td class="r"><input class="in num" type="number" style="width:70px" data-cap="${id}" value="${p.weeklyCapacity||0}"></td><td>${p.userId?'<span class="chip good">linked</span>':'<span class="chip">not linked</span>'}${p.userId && S.me.isOwner && id!==S.personId?` <button class="btn sm ghost" data-act="unlink" data-id="${id}">Unlink</button>`:''}</td></tr>`).join('')}
       </tbody></table>
-      <p class="muted">Contractors and interns are paid as expenses, outside the pool. Share Lucid OS with Carter as a Contributor or Editor so he can track and approve.</p>
+      <p class="muted">Contractors and interns are paid as expenses, outside the pool. Share LS Command with Carter as a Contributor or Editor so he can track and approve.</p>
       ${!S.me.id ? `<div class="row"><span class="muted">Acting as ${esc(person(S.personId).name)} in this browser.</span><button class="btn sm" data-act="switch-person">Switch</button></div>` : ''}
-    </div>
-    <div class="panel"><h3>ClickUp</h3>
-      <p class="ink2" style="margin-top:0">ClickUp stays the task manager. Lucid OS reads tasks so you can start a timer from one; time is stored only here, so nothing is ever counted twice.</p>
-      <div class="kv"><span>Last sync</span><span>${cu?.syncedAt ? new Date(cu.syncedAt).toLocaleString() + ' by ' + esc(person(cu.syncedBy).name) : 'Never'}</span><span>Tasks</span><span>${cu?.tasks?.length || 0}</span><span>Lists</span><span>${cu?.lists ? Object.keys(cu.lists).length : 0}</span></div>
-      <div class="row" style="margin-top:12px"><button class="btn pri" data-act="cu-sync">Sync ClickUp now</button><span id="cu-msg" class="muted"></span></div>
-      <p class="muted">Synced: task ID, title, list, space, folder, status, assignees, tags and due date. ClickUp's own time estimates and tracked time aren't included in the task list feed.</p>
     </div>
     <div class="panel"><h3>Timer and reminders</h3>
       <div class="fg"><label class="field"><span>Company time zone</span><input class="in" id="s-tz" value="${esc(st.timezone)}"></label><label class="field"><span>Long session nudge (hours)</span><input class="in num" type="number" id="s-long" value="${st.longTimerHours}"></label><label class="field"><span>Forgotten timer (hours)</span><input class="in num" type="number" id="s-forgot" value="${st.forgottenTimerHours}"></label><label class="field"><span>Idle check (minutes away)</span><input class="in num" type="number" id="s-idle" value="${st.idleMinutes}"></label></div>
@@ -362,10 +355,10 @@ VIEWS.settings = () => {
     <div class="panel"><h3>Export and import</h3>
       <div class="row"><button class="btn" data-act="export-csv">Time entries (.csv)</button><button class="btn" data-act="export-xlsx">Full workbook (.xlsx)</button></div>
       <hr class="sep" style="margin:14px 0">
-      <label class="field"><span>Import more time log rows (.xlsx or .csv)</span><input class="in" type="file" id="imp-file" accept=".xlsx,.csv"><small>Same columns as the old log: Date, Name, Start time, End time, Category, Task. Rows already imported are skipped; new rows land in the Review queue.</small></label>
+      <label class="field"><span>Import more time log rows (.xlsx or .csv)</span><input class="in" type="file" id="imp-file" accept=".xlsx,.csv"><small>Same columns as the old log: Date, Name, Start time, End time, Category, Task. Rows already imported are skipped; new rows land in Time Log as drafts.</small></label>
       <div id="imp-msg" class="muted" style="margin-top:8px"></div>
     </div>
-    <div class="panel"><h3>Original records</h3><p class="ink2" style="margin-top:0">The spreadsheets as imported, unchanged and read-only. Lucid OS keeps its own normalized copies; these stay as the reference.</p>
+    <div class="panel"><h3>Original records</h3><p class="ink2" style="margin-top:0">The spreadsheets as imported, unchanged and read-only. LS Command keeps its own normalized copies; these stay as the reference.</p>
       <div class="row"><button class="btn" data-act="src" data-id="timelog">Time log (${'207'} rows)</button><button class="btn" data-act="src" data-id="ledger">Revenue ledger</button><button class="btn" data-act="src" data-id="contracts">Contracts</button></div></div>
   </div>`;
 };
@@ -397,7 +390,7 @@ async function lockPeriod(m){
   openModal(`<header><h2>Approve and lock ${monthLabel(m)}</h2><button class="btn ghost" data-act="close">Close</button></header><div class="body">
     <div class="kv"><span>Labor pool</span><span>${money2(P.pool)}</span>${P.people.map(p => `<span>${esc(person(p.id).name)}: ${hrs(p.approved)} h</span><span>${money2(p.payout)}</span>`).join('')}</div>
     ${pend ? `<div class="note warn">${hrs(pend)} hours in ${monthShort(m)} aren't approved and won't be paid in this period.</div>` : ''}
-    ${R.total ? `<div class="note">The Review queue has ${R.total} open items. Some may affect this month.</div>` : ''}
+    ${R.total ? `<div class="note">Time Log has ${R.total} entries to check. Some may affect this month.</div>` : ''}
     <label class="field"><span>Note</span><input class="in" id="lk-note" placeholder="e.g. Paid Oct 3 from Mercury"></label></div>
     <footer><span class="muted">Locking freezes entries and revenue in this month until someone unlocks it.</span><button class="btn pri" data-act="lock-go" data-m="${m}">Lock period</button></footer>`);
   UI.lockSnap = snap;
@@ -416,12 +409,21 @@ async function onClick(ev){
     case 'claim': await claimPerson(id); break;
     case 'theme': { const cur = document.documentElement.dataset.theme; const nx = !cur ? 'dark' : cur === 'dark' ? 'light' : ''; if (nx) document.documentElement.dataset.theme = nx; else delete document.documentElement.dataset.theme; lsSet('theme', nx); render(); break; }
     case 'start': openStart(); break;
+    case 'scope-pick': {
+      const sc = a.dataset.scope;
+      UI.startScope = sc;
+      document.querySelectorAll('#st-scope .seg-b').forEach(b => b.classList.toggle('on', b.dataset.scope === sc));
+      $('#st-fields').innerHTML = startFields(sc, {});
+      $('#st-err').textContent = '';
+      ($('#st-client') || $('#st-cat'))?.focus();
+      break;
+    }
+    case 'admin-tab': UI.adminTab = a.dataset.tab; render(); break;
     case 'start-go': await startGo(); break;
     case 'quickstart': await startTimer({clientId:a.dataset.c, typeId:a.dataset.t}); break;
     case 'pause': await pauseTimer(); break;
     case 'resume': await resumeTimer(); break;
     case 'stop': stopTimer(); break;
-    case 'switch': stopTimer('switch'); break;
     case 'log': openEntryEditor({personId:S.personId, date:today(), start:Date.now()-3600e3, end:Date.now(), status:'draft', source:'lucid', payoutEligible:true, billable:false}); break;
     case 'edit': { const e = entryById(id); if (e) openEntryEditor(e); break; }
     case 'ed-save': await saveEditor(a.dataset.status); break;
@@ -445,8 +447,6 @@ async function onClick(ev){
       const minutes = Math.round((end-start)/60000);
       openEntryEditor({...main, start, end, minutes, pausedMin:0, allocations:[...(main.allocations||[]), {clientId:other.clientId, typeId:other.typeId, minutes:Math.min(other.minutes, Math.round(minutes/2)), attention:'active', units:other.units||0}], _mergeFrom:other.id});
       UI.edit.mergeDelete = other.id; break; }
-    case 'ql-parse': await parseQuick($('#ql-text').value); break;
-    case 'ql-use': useQuick(+a.dataset.i); break;
     case 'dismiss': UI.dismissed[a.dataset.k] = true; render(); break;
     case 'away-keep': UI.awayPrompt = null; render(); break;
     case 'away-drop': { const t = S.timers[S.personId]; await timerSet({pausedMs:(t.pausedMs||0) + UI.awayPrompt.minutes*60000}); UI.awayPrompt = null; toast('Away time removed'); break; }
@@ -470,7 +470,6 @@ async function onClick(ev){
     case 'notif': try { const p = await Notification.requestPermission(); toast(p==='granted'?'Notifications on':'Notifications not allowed in this view'); } catch { toast('Notifications are not available here'); } break;
     case 'unlink': await S.db.doc('config/people').update({items:{[id]:{userId:null}}}); await audit('people', id, [{field:'userId', from:'linked', to:null}], 'Unlinked sign-in'); break;
     case 'switch-person': lsSet('actingAs', null); S.personId = null; render(); break;
-    case 'cu-sync': await syncClickUp(); break;
     case 'export-csv': await exportCSV(); break;
     case 'export-xlsx': await exportXLSX(); break;
     case 'src': await showSource(id); break;
@@ -487,6 +486,9 @@ async function saveRules(){
   await saveConfig('settings', patch, reason); toast(locked && impact ? 'Saved. Locked months keep their snapshots.' : 'Saved');
 }
 function onChange(ev){
+  if (ev.target.id === 'ed-joint'){ const w = $('#ed-joint-wrap'); if (w) w.hidden = !ev.target.checked; }
+  if (ev.target.id === 'ed-cat' || ev.target.id === 'ed-done'){ /* no recompute needed */ }
+
   const el = ev.target, id = el.id;
   if (id === 'f-person') setF({person:el.value}); else if (id === 'f-client') setF({client:el.value}); else if (id === 'f-family') setF({family:el.value});
   else if (id === 'f-from') setF({from:el.value}); else if (id === 'f-to') setF({to:el.value});
@@ -496,9 +498,7 @@ function onChange(ev){
   else if (id === 'me-person'){ UI.mePerson = el.value; render(); }
   else if (id === 'af'){ UI.af = el.value; render(); }
   else if (id === 'tq'){ UI.tq = el.value; render(); }
-  else if (id === 'st-client'){ $('#st-cu').innerHTML = S.clickup?.tasks?.length ? clickupOptions(el.value) : $('#st-cu').innerHTML; }
-  else if (id === 'st-cu'){ const t = (S.clickup?.tasks||[]).find(x => x.id === el.value); const cid = t && Object.entries(S.clients).find(([,c]) => c.clickupListId === t.listId)?.[0]; if (cid) $('#st-client').value = cid; }
-  else if (id === 'ed-client'){ $('#ed-cu').innerHTML = clickupOptions(el.value, $('#ed-cu').value); $('#ed-bill').checked = defaultBillable($('#ed-type').value, el.value); updateDur(); }
+  else if (id === 'ed-client'){ updateDur(); }
   else if (id === 'ed-type'){ const t = ttype(el.value); if (t){ $('#ed-unit').value = t.unit; $('#ed-cls').value = t.cls; $('#ed-bill').checked = defaultBillable(el.value, $('#ed-client').value); $('#ed-pay').checked = t.payoutEligible !== false; } }
   else if (id?.startsWith('ed-')) updateDur();
   else if (el.dataset.alloc){ const a = UI.edit.e.allocations[+el.dataset.alloc]; a[el.dataset.k] = el.dataset.k === 'minutes' ? Math.max(0, +el.value||0) : el.value; updateDur(); }
@@ -541,10 +541,9 @@ function cmdItems(){
   const run = S.timers[S.personId]?.running;
   return [...NAV.flatMap(([g, items]) => items.map(([id, label]) => ({label:'Go to ' + label, hint:g, fn:() => go(id)}))),
     {label: run ? 'Stop timer' : 'Start timer', hint:'Timer', fn:() => run ? stopTimer() : openStart()},
-    ...(run ? [{label:'Switch task', hint:'Timer', fn:() => stopTimer('switch')}] : []),
     {label:'Log past time', hint:'Timer', fn:() => openEntryEditor({personId:S.personId, date:today(), start:Date.now()-3600e3, end:Date.now(), status:'draft', source:'lucid', payoutEligible:true})},
     {label:'Add revenue', hint:'Money', fn:() => openFin('ledger')}, {label:'Add expense', hint:'Money', fn:() => openFin('expenses')},
-    {label:'Sync ClickUp', hint:'System', fn:() => syncClickUp()}, {label:'Export workbook', hint:'System', fn:() => exportXLSX()},
+    {label:'Export workbook', hint:'System', fn:() => exportXLSX()},
     ...Object.values(S.clients).slice(0).map(c => ({label:'Client: ' + c.name, hint:'Filter', fn:() => { setF({client:Object.keys(S.clients).find(k => S.clients[k]===c)}); go('company'); }}))];
 }
 function openCmd(){ UI.cmdOpen = true; openModal(`<div class="palette"><input class="in" id="cmd-q" placeholder="Jump to a page or action" autofocus style="border:0; border-bottom:1px solid var(--line); border-radius:0; padding:14px"><div id="cmd" style="max-height:50vh; overflow-y:auto"></div></div>`); renderCmd(''); }
@@ -552,36 +551,9 @@ function renderCmd(q){ q = q.toLowerCase(); UI.cmdList = cmdItems().filter(x => 
   $('#cmd').innerHTML = UI.cmdList.map((x,i) => `<div class="opt ${i===0?'hi':''}" data-act="cmd" data-i="${i}"><span>${esc(x.label)}</span><span class="muted">${esc(x.hint)}</span></div>`).join(''); }
 document.addEventListener('click', ev => { const o = ev.target.closest('[data-act="cmd"]'); if (!o) return; const x = UI.cmdList[+o.dataset.i]; UI.cmdOpen = false; closeModal(); x?.fn(); }, true);
 
-/* ---------- ClickUp sync (runs with the viewer's own ClickUp connector) */
-async function syncClickUp(){
-  const msg = $('#cu-msg'); const say = t => { if (msg) msg.textContent = t; else toast(t); };
-  if (!S.mcp){ say('ClickUp isn\'t reachable from this view.'); return; }
-  say('Syncing…');
-  try {
-    const st = S.settings.clickup || {};
-    const lists = {};
-    try {
-      const h = (await S.mcp.callTool('ClickUp', 'clickup_get_workspace_hierarchy', {max_depth:'2', limit:50})).payload;
-      const walk = (n, space, folder) => { for (const c of n.children||[]){ if (c.type==='space') walk(c, c.name, null); else if (c.type==='folder') walk(c, space, c.name); else if (c.type==='list') lists[c.id] = {name:c.name.trim(), space, folder}; } };
-      walk(h?.hierarchy?.root || {}, null, null);
-    } catch (e){ console.warn('hierarchy', e); }
-    const tasks = []; let page = 0, more = true;
-    while (more && page < 15){
-      const p = (await S.mcp.callTool('ClickUp', 'clickup_filter_tasks', {space_ids: st.spaceIds || undefined, include_closed:false, subtasks:true, page})).payload;
-      for (const t of p?.tasks||[]) tasks.push({id:t.id, name:t.name, status:t.status, url:t.url, listId:t.list?.id, listName:t.list?.name?.trim(), space:lists[t.list?.id]?.space||null, folder:lists[t.list?.id]?.folder||null,
-        assignees:(t.assignees||[]).map(a => ({id:String(a.id), name:a.username})), tags:(t.tags||[]).map(x => x.name||x), due:t.due_date ? new Date(+t.due_date).toISOString().slice(0,10) : null, updated:t.date_updated ? +t.date_updated : null});
-      more = !!p?.has_more; page = p?.next_page ?? page+1;
-    }
-    await S.db.doc('sync/clickup').set({syncedAt:Date.now(), syncedBy:S.personId, tasks:tasks.slice(0,900), lists});
-    say(`Synced ${tasks.length} tasks from ${Object.keys(lists).length} lists.`);
-  } catch (e){
-    const m = {needs_reauth:'Reconnect ClickUp in claude.ai Settings → Connectors.', server_not_connected:'Add the ClickUp connector in claude.ai Settings → Connectors.', not_in_manifest:'ClickUp access was declined for this page.', selection_required:'Choose which ClickUp connection to use when Claude asks.', server_unavailable:'ClickUp didn\'t answer. Try again in a minute.', blocked_by_policy:'Your organization blocks this ClickUp tool.'}[e?.code];
-    say(m || ('ClickUp sync failed: ' + (e?.message || 'unknown error')));
-  }
-}
+/* ClickUp sync removed for V1, spec section 4. */
 
-/* ---------- export */
-function entryExportRows(){ return allEntries().map(e => ({Date:e.date, Person:person(e.personId).name, Start:e.start?timeKey(e.start):'', End:e.end?timeKey(e.end):'', Minutes:e.minutes, Hours:+hrs(e.minutes), Client:clientName(e.clientId), 'Service family':famName(famOf(e.typeId)), 'Task code':e.typeId||'', 'Task type':typeName(e.typeId), Units:e.units??'', Unit:e.unitType||'', Stage:e.stage||'', Complexity:e.complexity||'', AI:e.ai||'', Revision:e.revision??'', Billable:e.billable?'yes':'no', 'Payout eligible':e.payoutEligible!==false?'yes':'no', Class:e.cls||'', Status:e.status, Joint:e.joint?'yes':'', 'ClickUp task':e.clickupTaskName||'', 'ClickUp ID':e.clickupTaskId||'', Splits:(e.allocations||[]).map(a => `${a.typeId} ${a.minutes}m ${a.attention}`).join('; '), Note:e.note||'', Source:e.source, 'Import ref':e.importRef||''})); }
+function entryExportRows(){ return allEntries().map(e => ({Date:e.date, Person:person(e.personId).name, Start:e.start?timeKey(e.start):'', End:e.end?timeKey(e.end):'', Minutes:e.minutes, Hours:+hrs(e.minutes), Client:clientName(e.clientId), 'Service family':famName(famOf(e.typeId)), 'Task code':e.typeId||'', 'Task type':typeName(e.typeId), Units:e.units??'', Unit:e.unitType||'', Stage:e.stage||'', Complexity:e.complexity||'', AI:e.ai||'', Revision:e.revision??'', Billable:e.billable?'yes':'no', 'Payout eligible':e.payoutEligible!==false?'yes':'no', Class:e.cls||'', Status:e.status, Joint:e.joint?'yes':'', Splits:(e.allocations||[]).map(a => `${a.typeId} ${a.minutes}m ${a.attention}`).join('; '), Note:e.note||'', Source:e.source, 'Import ref':e.importRef||''})); }
 async function saveFile(filename, data){
   if (!S.dl){ toast('Downloads aren\'t available in this view'); return; }
   try { await S.dl.save({filename, data}); } catch (e){ if (e?.code !== 'declined') toast(e?.code === 'rate_limited' ? 'A save prompt is already open' : 'Could not save the file'); }
@@ -631,6 +603,68 @@ async function importFile(file){
       await upsertItem('entries', monthOf(d), e.id, e); existing.add(pid+'|'+start+'|'+end); added++;
     }
     await audit('import', file.name, [{field:'rows added', from:null, to:added}], `Imported ${file.name}`);
-    msg.textContent = `Added ${added} rows as drafts in the Review queue. Skipped ${skipped} (already imported or incomplete).`;
+    msg.textContent = `Added ${added} rows as drafts in Time Log. Skipped ${skipped} (already imported or incomplete).`;
   } catch (e){ msg.textContent = 'Couldn\'t read that file: ' + (e.message||''); }
 }
+
+/* ================================================================ LS Command additions */
+
+/* System Admin, spec section 45. Clients, Leads and Task types behind one
+ * restricted door, rather than loose in the sidebar for everyone to see. */
+VIEWS.admin = () => {
+  if (!isAdmin()) return `<div class="head"><div><h1>System Admin</h1><p>You do not have access to this area.</p></div></div>`;
+  const tab = UI.adminTab || 'clients';
+  const tabs = [['clients','Clients and leads'],['tasks','Task types'],['audit','Audit log']];
+  return `<div class="head"><div><h1>System Admin</h1><p>Clients, leads, task types and the change record. Admins only.</p></div></div>
+  <div class="row" style="margin-bottom:14px">${tabs.map(([v,l]) =>
+    `<button class="btn ${tab===v?'pri':''}" data-act="admin-tab" data-tab="${v}">${l}</button>`).join('')}</div>
+  <div>${(VIEWS[tab] ? VIEWS[tab]() : '')}</div>`;
+};
+VIEWS.admin.after = () => { const t = UI.adminTab || 'clients'; VIEWS[t]?.after?.(); };
+
+/* Company Projections, spec section 31. Forward-looking only: what is already
+ * contracted, what it costs to run, and what that leaves. Nothing invented. */
+VIEWS.projections = () => {
+  if (!isAdmin()) return `<div class="head"><div><h1>Company Projections</h1><p>You do not have access to this area.</p></div></div>`;
+  const rr = runRate();
+  const months = [];
+  let m = monthOf(today());
+  for (let i = 0; i < 6; i++){ months.push(m); m = addMonths(m, 1); }
+  const rows = months.map(mm => {
+    const exp = expensesIn(mm+'-01', monthEnd(mm));
+    const expTotal = r2(sum(exp, x => x.amount));
+    const rev = r2(rr.recurringMonthly || 0);
+    return {m: mm, rev, expTotal, net: r2(rev - expTotal)};
+  });
+  const anyExp = rows.some(r => r.expTotal > 0);
+  return `<div class="head"><div><h1>Company Projections</h1><p>Six months ahead, from active contracts with a fixed billing cycle. Commission and per-deliverable work is excluded rather than estimated.</p></div></div>
+  <div class="panel"><div class="tw"><table>
+    <thead><tr><th>Month</th><th class="r">Expected revenue</th><th class="r">Expected costs</th><th class="r">Net</th></tr></thead>
+    <tbody>${rows.map(r => `<tr><td>${monthLabel(r.m)}</td><td class="r num">${money2(r.rev)}</td>
+      <td class="r num">${anyExp ? money2(r.expTotal) : '<span class="muted">Insufficient data</span>'}</td>
+      <td class="r num">${anyExp ? money2(r.net) : '<span class="muted">–</span>'}</td></tr>`).join('')}</tbody>
+  </table></div></div>`;
+};
+
+/* Tasks, spec sections 27 and 28. Work that is open, and work anyone can pick up.
+ * Kept off the personal Dashboard on purpose so that page stays usable. */
+VIEWS.board = () => {
+  const open = allEntries().filter(e => e.completed === false && !e.deleted)
+    .sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  const mine = open.filter(e => e.personId === S.personId);
+  const rest = open.filter(e => e.personId !== S.personId);
+  const table = (list, empty) => list.length ? `<div class="tw"><table>
+      <thead><tr><th>Task</th><th>Client or lead</th><th>Category</th><th>Owner</th><th>Last worked</th></tr></thead>
+      <tbody>${list.slice(0,80).map(e => `<tr>
+        <td><b>${esc(e.taskName || typeName(e.typeId))}</b></td>
+        <td>${esc(e.scope === 'internal' || e.clientId === 'internal' ? 'Internal' : clientName(e.clientId))}</td>
+        <td>${esc(e.category || '–')}</td>
+        <td>${esc(person(e.personId).name)}</td>
+        <td class="num">${dateLabel(e.date)}</td></tr>`).join('')}</tbody></table></div>`
+    : `<div class="muted">${empty}</div>`;
+  return `<div class="head"><div><h1>Tasks</h1><p>Anything stopped without being marked finished. Pick one up and start a timer on it.</p></div></div>
+  <div class="stack">
+    <div class="panel"><h3>Yours to finish <span class="chip ${mine.length?'warn':'good'}">${mine.length || 'Clear'}</span></h3>${table(mine, 'Nothing of yours is open.')}</div>
+    <div class="panel"><h3>Open across the team <span class="muted">${rest.length}</span></h3>${table(rest, 'Nothing open elsewhere.')}</div>
+  </div>`;
+};
