@@ -13,10 +13,23 @@ async function boot(){
   const c = window.claude;
   const [db, user] = await Promise.all([c?.use?.('db') ?? null, c?.use?.('user') ?? null]);
   S.db = db; S.user = user;
-  if (!db){ $('#main').innerHTML = `<div class="gate panel"><h2>Lucid OS needs its database</h2><p class="ink2">Open this page inside Claude to load your team's time, revenue and payout records.</p></div>`; return; }
+  if (!db){ renderOutside(); return; }
   if (user){ const me = await user.me(); S.me = {id:me.id, name:me.name, avatarUrl:me.avatarUrl, isOwner:me.isOwner}; }
   c.use('mcp').then(m => { S.mcp = m; }); c.use('downloads').then(d => { S.dl = d; }); c.use('sample').then(s => { S.sample = s; });
   subscribe();
+}
+/* Shown when the page is opened outside Claude (for example from the Vercel deployment).
+   Time, revenue and payout data only exist in the Claude-hosted app, so send people there. */
+const APP_URL = 'https://claude.ai/artifact/Whr8uTA7z4by3d8wvt1VcU';
+function renderOutside(){
+  $('#rail').innerHTML = ''; $('#timer').innerHTML = ''; $('#who').innerHTML = '';
+  $('#main').innerHTML = `<div class="gate">
+    <div class="eyebrow">Lucid Studio</div><h1 style="margin:6px 0 8px">Lucid OS runs inside Claude</h1>
+    <p class="ink2">Your timer, time entries, revenue and payouts live in the Claude-hosted app, where sign-in, ClickUp and the team database are available. This address is a doorway to it.</p>
+    <p style="margin-top:18px"><a class="btn sig" href="${APP_URL}" rel="noopener">Open Lucid OS</a></p>
+    <p class="muted" style="margin-top:14px">No access yet? Ask Jonas to share it with you.</p></div>`;
+  document.querySelector('.app')?.style.setProperty('grid-template-columns', 'minmax(0,1fr)');
+  $('#rail').hidden = true;
 }
 function subscribe(){
   const onErr = e => console.warn('db', e);

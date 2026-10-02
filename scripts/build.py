@@ -20,6 +20,11 @@ def build():
     os.makedirs(os.path.join(ROOT, 'dist'), exist_ok=True)
     out = os.path.join(ROOT, 'dist', 'lucid-os.html')
     open(out, 'w', encoding='utf-8').write(html)
+    # Static hosts (Vercel) serve index.html at the root. The skeleton below is what Claude adds at publish time.
+    page = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+            '<meta name="robots" content="noindex,nofollow"></head><body>' + html + '</body></html>\n')
+    open(os.path.join(ROOT, 'dist', 'index.html'), 'w', encoding='utf-8').write(page)
     open(os.path.join(ROOT, 'dist', 'app.js'), 'w', encoding='utf-8').write(js)   # for `node --check`
     print(f'Built {out} ({len(html)//1024} KB)')
 

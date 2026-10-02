@@ -64,6 +64,12 @@ Publishing goes through Claude:
 
 You need edit access to the artifact to publish. Publishing a new version keeps all data; the database lives with the artifact, not the page.
 
+## Vercel
+
+The repo deploys to Vercel as a static site with no build step: `vercel.json` serves the committed `dist/` folder (so always commit the rebuilt `dist/`). Import the repo in Vercel, keep the defaults, deploy.
+
+What the Vercel URL does today: opened outside Claude, the page has no database, sign-in or ClickUp, so it shows a branded screen with a button into the live Claude app. It is a doorway, not a second copy. Running the full app directly on Vercel needs a backend of its own (database, auth, a ClickUp integration), which is the Next.js + Supabase version described in the original spec.
+
 ## Data model (database collections)
 
 | Path | Contents |
