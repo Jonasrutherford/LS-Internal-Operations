@@ -1,0 +1,160 @@
+/* Lucid OS design tokens.
+   Ported from the original src/head.html. Components never use literal colors,
+   so both themes stay readable. The former yellow accent (#ffbe00) is retired:
+   --signal is now Lucid orange, and heatmaps use the orange ramp below. */
+
+:root {
+  --bg: #f4f4f9; --panel: #ffffff; --panel-2: #ecebf5;
+  --line: #dad9ea; --line-2: #c7c6de;
+  --ink: #0b0d51; --ink-2: #44466f; --ink-3: #72749b;
+  --accent: #19169a; --accent-ink: #ffffff; --accent-soft: #e6e5fa;
+
+  /* Lucid orange replaces the old yellow signal colour. */
+  --signal: #f25b02; --signal-ink: #ffffff; --signal-soft: #fdeadf;
+  --flare: #f25b02;
+
+  --good: #1d7f47; --good-soft: #e2f3e8;
+  --warn: #9a5b00; --warn-soft: #fdf0d8;
+  --crit: #c2311d; --crit-soft: #fbe4df;
+
+  /* Series colours for client charts. */
+  --s1: #3d3ad0; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s5: #e87ba4; --s6: #008300; --s7: #8a5cc7; --s8: #e34948;
+
+  /* Lucid orange heat ramp. Heatmaps stay Lucid regardless of client colours. */
+  --heat-0: #fdf1e9; --heat-1: #fbd9c0; --heat-2: #f8b588;
+  --heat-3: #f58b4e; --heat-4: #f25b02; --heat-5: #b63f00;
+
+  --div-neg: #c2311d; --div-mid: #b9b8cc; --div-pos: #3d3ad0;
+
+  --f-display: "Outfit", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --r: 10px; --r-sm: 6px;
+  --shadow: 0 1px 2px rgba(11, 13, 81, .06), 0 8px 24px rgba(11, 13, 81, .06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #08091d; --panel: #10122c; --panel-2: #171a3a;
+    --line: #262a52; --line-2: #343866;
+    --ink: #eef0ff; --ink-2: #b4b7dc; --ink-3: #8387b5;
+    --accent: #8f8cff; --accent-ink: #0b0d51; --accent-soft: #1f2156;
+    --signal: #ff7a2e; --signal-ink: #0b0d51; --signal-soft: #3a1c0b;
+    --flare: #ff7a2e;
+    --good: #4cc47f; --good-soft: #12301f;
+    --warn: #f0a73a; --warn-soft: #33260c;
+    --crit: #ff6b57; --crit-soft: #3a1712;
+    --s1: #6a67f0; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s5: #d55181; --s6: #008300; --s7: #9d7de0; --s8: #e66767;
+    --heat-0: #1d1408; --heat-1: #3a2410; --heat-2: #6b3d14;
+    --heat-3: #a8571a; --heat-4: #ff7a2e; --heat-5: #ffa269;
+    --div-neg: #ff6b57; --div-mid: #4a4d74; --div-pos: #8f8cff;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #08091d; --panel: #10122c; --panel-2: #171a3a;
+  --line: #262a52; --line-2: #343866;
+  --ink: #eef0ff; --ink-2: #b4b7dc; --ink-3: #8387b5;
+  --accent: #8f8cff; --accent-ink: #0b0d51; --accent-soft: #1f2156;
+  --signal: #ff7a2e; --signal-ink: #0b0d51; --signal-soft: #3a1c0b;
+  --flare: #ff7a2e;
+  --good: #4cc47f; --good-soft: #12301f;
+  --warn: #f0a73a; --warn-soft: #33260c;
+  --crit: #ff6b57; --crit-soft: #3a1712;
+  --s1: #6a67f0; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #008300; --s7: #9d7de0; --s8: #e66767;
+  --heat-0: #1d1408; --heat-1: #3a2410; --heat-2: #6b3d14;
+  --heat-3: #a8571a; --heat-4: #ff7a2e; --heat-5: #ffa269;
+  --div-neg: #ff6b57; --div-mid: #4a4d74; --div-pos: #8f8cff;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { padding: 0; margin: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--f-display);
+  margin: 0;
+  text-wrap: balance;
+  letter-spacing: -.01em;
+}
+h1 { font-size: 22px; font-weight: 600; }
+h2 { font-size: 16px; font-weight: 600; }
+h3 { font-size: 13.5px; font-weight: 600; }
+
+a { color: inherit; text-decoration: none; }
+
+.mono { font-family: var(--f-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.eyebrow {
+  font-family: var(--f-display);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.num { font-variant-numeric: tabular-nums; }
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+.muted { color: var(--ink-3); }
+
+/* Tables read as dense operational data, not cards. */
+table { border-collapse: collapse; width: 100%; }
+th {
+  font-family: var(--f-display);
+  font-weight: 600; font-size: 11.5px;
+  letter-spacing: .04em; text-transform: uppercase;
+  color: var(--ink-3); text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+  position: sticky; top: 0;
+  white-space: nowrap;
+}
+td { padding: 9px 10px; border-bottom: 1px solid var(--line); }
+
+input, select, textarea, button { font: inherit; color: inherit; }
+
+input[type="text"], input[type="number"], input[type="date"],
+input[type="time"], input[type="email"], input[type="password"],
+select, textarea {
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  padding: 7px 9px;
+  width: 100%;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible,
+button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button { cursor: pointer; border-radius: var(--r-sm); border: 1px solid var(--line-2); background: var(--panel); padding: 7px 12px; }
+button[data-variant="primary"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+button[data-variant="signal"] { background: var(--signal); color: var(--signal-ink); border-color: transparent; font-weight: 600; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

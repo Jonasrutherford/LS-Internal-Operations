@@ -1,6 +1,6 @@
 data/
-scripts/
-tests/
 src/
+dist/
+scripts/
 assets/
 *.md

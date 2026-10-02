@@ -1,8 +1,29 @@
 # Lucid OS: notes for Claude
 
-- Single-page Claude artifact. Source in `src/`, built by `python3 scripts/build.py` into `dist/lucid-os.html`.
-- Live artifact: https://claude.ai/artifact/Whr8uTA7z4by3d8wvt1VcU. Publish updates to that URL; omit `capabilities` on republish so the stored declaration (db with a `source` owner-write rule, user with profile scope, mcp ClickUp `clickup_filter_tasks` + `clickup_get_workspace_hierarchy`, downloads, sample) carries forward.
-- Rendering: views are template-string functions registered on `VIEWS`; `render()` rebuilds `#main`. Events are delegated in `onClick`/`onChange` via `data-act`. Modals live in `#modal`.
-- Writes go through `upsertItem`, `saveEntry`, `saveFin`, `saveConfig`; each writes an audit row. Keep that.
-- After any change to `core.js` payout math, run `node tests/payouts.test.js` (needs `data/` seed; see README).
-- Style: plain copy, no em dashes, colors only via CSS tokens.
+GitHub is the source of truth. Vercel is production. Claude Artifacts are not used
+for production and are not a deployment target.
+
+- Next.js (App Router, TypeScript) + Supabase. `npm run dev`, `npm run build`, `npm test`.
+- Authorization is enforced in the database. Every table has row-level security in
+  `supabase/migrations/`. `requireAdmin()` in `lib/auth.ts` guards Finances and System
+  Admin pages, and `assertAdmin()` guards server actions. Hiding a nav link is never
+  the control.
+- Finance math lives in `lib/finance.ts` and is covered by `tests/finance.test.mjs`.
+  Run `npm test` after touching it.
+- Never store a derived monthly figure as a contract. Billing frequency is recorded
+  exactly as agreed; monthly equivalents are computed for analytics only.
+- Never invent financial values, time entries or task estimates. Show N/A or
+  Insufficient Data instead.
+- Every change to money or to someone else's time writes an audit row through
+  `audit()` in `lib/auth.ts`.
+- Style: plain copy, no em dashes, colors only via the CSS tokens in
+  `app/globals.css`. The old yellow accent is retired; the accent is Lucid orange.
+
+## Still on the old architecture
+
+`src/`, `dist/`, `scripts/build.py` and `tests/payouts.test.js` are the previous
+single-file Claude artifact build. They are kept until the Next.js app reaches
+feature parity and the team cuts over, then removed. Do not add to them.
+
+`tests/payouts.test.js` cannot run here: it needs the spreadsheets in `data/`, which
+are deliberately kept out of git.
