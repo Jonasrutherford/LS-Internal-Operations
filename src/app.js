@@ -3,14 +3,15 @@
  * Finances is admin-only and is filtered out for employees in renderRail(). */
 const NAV = [
   ['Work',     [['me','Dashboard'],['track','Start / Log'],['entries','Time Log'],['board','Tasks']]],
-  ['Insight',  [['company','Performance'],['projections','Company Projections']]],
-  ['Finances', [['revenue','Revenue'],['payouts','Payouts / Expenses'],['contracts','Contracts']]],
+  ['Insight',  [['performance','Performance'],['projections','Company Projections']]],
+  ['Finances', [['revenue','Revenue'],['payouts','Payouts / Expenses'],['contracts','Clients']]],
   ['System',   [['settings','Settings'],['admin','System Admin']]],
 ];
 /* Groups an employee never sees. Route guards in render() enforce this as well,
  * so hiding the link is a convenience rather than the control. */
 const ADMIN_GROUPS = ['Finances'];
 const ADMIN_VIEWS = ['revenue','payouts','contracts','expenses','admin','clients','tasks','projections','audit'];
+/* 'company' is the old combined dashboard, superseded by 'performance'. */
 const VIEWS = {};
 
 /* Permissions, spec section 47. Partners administer; everyone else is an employee
@@ -70,6 +71,11 @@ async function claimPerson(pid){
 }
 
 let _rq = false;
+/* Direct links and the back button should move between pages, not just clicks. */
+window.addEventListener('hashchange', () => {
+  const h = (location.hash||'').slice(1);
+  if (VIEWS[h] && h !== S.view) go(h);
+});
 function scheduleRender(){ if (_rq) return; _rq = true; requestAnimationFrame(() => { _rq = false; render(); }); }
 function go(view){ if (!VIEWS[view]) view = 'me'; if (!canSee(view)) view = 'me'; S.view = view; lsSet('view', view); try { history.replaceState(null, '', '#'+view); } catch {} render(); window.scrollTo(0,0); }
 
@@ -255,6 +261,38 @@ function pickType(id, code){
 }
 
 /* ClickUp removed for V1, spec section 4. No sync, no task ids, no API key. */
+
+/* Work classification, spec sections 9 and 10. Scope is the primary split and the
+ * category list changes with it. This sits above the existing task-type taxonomy,
+ * which still drives units and benchmarks, so older entries stay valid. */
+const EXTERNAL_CATEGORIES = [
+  'Sales & outreach','Lead generation','Lead qualification','Discovery calls',
+  'Proposals & closing','Client onboarding','Client communication','Account management',
+  'Client strategy','Service fulfillment','Content creation for clients','Client reporting',
+  'Client retention','Upselling & cross-selling','Partnership development','Customer support',
+  'Client feedback & satisfaction',
+];
+const INTERNAL_CATEGORIES = [
+  'Hiring & recruiting','Employee onboarding','Training & development','Internal operations',
+  'SOPs & process documentation','Workflow automation','Project management','Quality assurance',
+  'Finance & accounting','Legal & administration','Internal meetings','Performance management',
+  'Resource allocation','Strategic planning','Internal marketing','Technology & infrastructure',
+  'Team management',
+];
+const categoriesFor = scope => scope === 'internal' ? INTERNAL_CATEGORIES : EXTERNAL_CATEGORIES;
+
+/* Clients and Leads listed separately, spec section 11. Internal work carries no
+ * client, so "Internal" never appears here. */
+function partyOptions(sel){
+  const entries = Object.entries(S.clients).filter(([id,c]) => id !== 'internal' && (c.active !== false || id === sel));
+  const isLead = ([id,c]) => id === 'prospects' || c.kind === 'lead' || c.lead === true;
+  const group = (label, list) => list.length
+    ? `<optgroup label="${label}">${list.map(([id,c]) => `<option value="${id}" ${id===sel?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>` : '';
+  const byName = (a,b) => a[1].name.localeCompare(b[1].name);
+  return `<option value="">Choose…</option>`
+    + group('Clients', entries.filter(e => !isLead(e)).sort(byName))
+    + group('Leads',   entries.filter(isLead).sort(byName));
+}
 
 /* ---------- start sheet */
 function openStart(prefill={}){

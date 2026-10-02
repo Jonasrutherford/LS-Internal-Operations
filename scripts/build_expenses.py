@@ -88,8 +88,11 @@ def build(src):
         if any(k in low for k in INTERNAL):
             skipped['internal'] += 1
             continue
-        # Partner payments are payouts, except small reimbursed subscriptions.
-        if any(p in low for p in PARTNERS) and cat_raw != 'Software & Subscriptions':
+        # Partner payments are payouts, not expenses, so they stay out. Two exceptions:
+        # reimbursed software, and the $400 payments to Carter that reimburse him for
+        # paying Melanie through his personal account.
+        reimburses_melanie = 'carter davis' in low and abs(amt) == 400.0
+        if any(p in low for p in PARTNERS) and cat_raw != 'Software & Subscriptions' and not reimburses_melanie:
             skipped['partner'] += 1
             continue
 
@@ -97,7 +100,10 @@ def build(src):
         if not d:
             continue
 
-        if any(c in low for c in CONTRACTORS):
+        if reimburses_melanie:
+            category = 'Contractors'
+            desc = 'Melanie Lee (reimbursed via Carter)'
+        elif any(c in low for c in CONTRACTORS):
             category = 'Contractors'
         elif cat_raw in CATEGORY:
             category = CATEGORY[cat_raw]

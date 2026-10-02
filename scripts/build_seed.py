@@ -139,10 +139,15 @@ CL = [
  ('mycare','MyCARE',['mycare'],None),
  ('integrita','Integrita',['integrita'],None),
  ('dawn','Dawn Esthetics',['dawn'],None),
- ('prospects','New business (prospects)',['your honor','django','school district','linda'],None),
+ ('yourhonor','Your Honor AI',['your honor','yourhonor'],None),
+ ('prospects','New business (leads)',['django','school district','linda'],None),
  ('internal','Lucid Studio (internal)',[],None),
 ]
-clients = {c[0]: dict(name=c[1], aliases=c[2], clickupListId=c[3], active=c[0] not in ('dawn','ssi'), kind='internal' if c[0]=='internal' else ('prospect' if c[0]=='prospects' else 'client')) for c in CL}
+clients = {c[0]: dict(name=c[1], aliases=c[2],
+    active=c[0] not in ('dawn','ssi'),
+    kind='internal' if c[0]=='internal' else ('lead' if c[0]=='prospects' else 'client'),
+    # Two brand hexes per client so charts read on either theme, Carter's answer 4.
+    brandLight=None, brandDark=None) for c in CL}
 
 def find_clients(text):
     t = ' '+text.lower()+' '
@@ -309,21 +314,38 @@ for i,r in enumerate(wb2['Ledger'].iter_rows(min_row=3, values_only=True), start
 contracts={}; raw_contracts=[]
 for i,r in enumerate(wb2['Contracts'].iter_rows(min_row=3, values_only=True), start=3):
     if not r[1]: continue
-    s=r[0].date(); client=r[1]; typ=r[2]; amt=float(r[3]); life=r[4]; end=r[6].date() if r[6] else None
-    raw_contracts.append(dict(row=i, start=str(s), client=client, type=typ, amount=amt, lifecycle=life, end=str(end) if end else None))
+    st=r[0].date(); client=r[1]; typ=r[2]; amt=float(r[3]); life=(r[4] or '').strip(); end=r[6].date() if r[6] else None
+    try:
+        billing_day = int(r[5])
+    except (TypeError, ValueError):
+        billing_day = st.day   # column holds a formula in some rows
+    raw_contracts.append(dict(row=i, start=str(st), client=client, type=typ, amount=amt, lifecycle=life, end=str(end) if end else None))
+    # Churned contracts are superseded history, not live agreements. Carter asked for
+    # them out of the app; the raw sheet above still holds them for reference.
+    if life.lower() != 'active':
+        continue
     cid = LEDGER_MAP.get(client.lower())
     kid='con'+sid('contract',i)
-    review = cid in ('terranova','integrita')
-    contracts[kid]=dict(id=kid, clientId=cid, clientName=client, contractType=typ.lower(), start=str(s), end=str(end) if end else None,
-        amount=amt, frequency='monthly', billingDay=s.day, renewalDate=str(end) if end else None, lifecycle=life.lower(),
-        includedServices='', plannedMonthlyHours=None, notes='', source='import', importRef=f'Contracts row {i}', deleted=False,
-        needsReview=review,
-        reviewNotes=['Contract says $%d/mo but payments of $%d landed on Apr 6 and Jul 25. Client pays a mix of monthly and quarterly; confirm the billing schedule.' % (amt, amt*3)] if review else [])
+    freq, billed = 'monthly', amt
+    if cid in ('terranova','integrita'):
+        freq, billed = 'quarterly', round(amt * 3, 2)   # sheet holds the monthly equivalent
+    contracts[kid]=dict(id=kid, clientId=cid, clientName=client, contractType=typ.lower(), start=str(st),
+        amount=billed, frequency=freq, billingDay=billing_day, lifecycle='active',
+        includedServices=[], notes='', source='import', importRef=f'Contracts row {i}', deleted=False,
+        needsReview=False, reviewNotes=[])
+
+# Commission agreements carry a percentage, not a fixed amount, spec section 38.
+for cid, pct, label in [('em', 10.0, 'E&M Garage Solutions'), ('yourhonor', 20.0, 'Your Honor AI')]:
+    kid='con'+sid('commission',cid)
+    contracts[kid]=dict(id=kid, clientId=cid, clientName=label, contractType='ad commission', start='2026-01-01',
+        amount=None, percentCommission=pct, frequency='commission', billingDay=None, lifecycle='active',
+        includedServices=[], notes='Commission on ad revenue.', source='seed', importRef=None, deleted=False,
+        needsReview=False, reviewNotes=[])
 
 # link ledger retainers to contracts
 for l in ledger.values():
     if l['revenueType']!='retainer': continue
-    cands=[c for c in contracts.values() if c['clientId']==l['clientId'] and c['start']<=l['invoiceDate'] and (not c['end'] or l['invoiceDate']<=c['end'])]
+    cands=[c for c in contracts.values() if c['clientId']==l['clientId'] and c['start']<=l['invoiceDate'] and (not c.get('end') or l['invoiceDate']<=c['end'])]
     if cands: l['contractId']=sorted(cands,key=lambda c:c['start'])[-1]['id']
 
 # ---------------------------------------------------------------- expenses (seeded from operating model 06_Financials, Jan-Aug)
@@ -350,13 +372,10 @@ for name,cat,amt,start,note,rv in REC:
 
 # ---------------------------------------------------------------- people + settings
 people = {
- 'carter': dict(name='Carter', fullName='Carter Davis', role='partner', poolMember=True, userId=None, clickupId='204106544', weeklyCapacity=15, active=True),
- 'jonas': dict(name='Jonas', fullName='Jonas Rutherford', role='partner', poolMember=True, userId=None, clickupId='94452486', weeklyCapacity=12, active=True),
- 'melanie': dict(name='Melanie', fullName='Melanie', role='contractor', poolMember=False, userId=None, clickupId=None, weeklyCapacity=5, active=False),
- 'sofia': dict(name='Sofia', fullName='Sofia', role='contractor', poolMember=False, userId=None, clickupId=None, weeklyCapacity=8, active=False),
- 'finn': dict(name='Finn', fullName='Finn', role='contractor', poolMember=False, userId=None, clickupId=None, weeklyCapacity=8, active=False),
- 'gui': dict(name='Guy', fullName='Guy Lagana', role='intern', poolMember=False, userId=None, clickupId=None, weeklyCapacity=5, active=False),
+ 'carter': dict(name='Carter', fullName='Carter Davis', role='partner', title='CEO', poolMember=True, userId=None, weeklyCapacity=15, active=True),
+ 'jonas':  dict(name='Jonas',  fullName='Jonas Rutherford', role='partner', title='COO', poolMember=True, userId=None, weeklyCapacity=12, active=True),
 }
+COMMISSION = {'em': 10.0, 'yourhonor': 20.0}
 settings = dict(poolPct=0.65, fixedSplit={'carter':0.40,'jonas':0.30}, hoursBasedFrom='2026-10', revenueBasis='cash', expenseTiming='after', annualGoal=100000, goalYear=2026, period='monthly',
    approvalMode='partner', timezone='America/Los_Angeles', longTimerHours=3, forgottenTimerHours=10, idleMinutes=30,
    workHours=dict(enabled=False, start='09:00', end='18:00', days=[1,2,3,4,5]), customAmounts={}, reconstructedThrough='2026-09',

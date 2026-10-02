@@ -86,7 +86,8 @@ function laborRows(){
   const rows = [];
   for (const e of allEntries()){
     if (!e.minutes || e.minutes <= 0) continue;
-    const base = {entryId:e.id, personId:e.personId, date:e.date, start:e.start, status:e.status, joint:!!e.joint, source:e.source, ai:e.ai};
+    const scope = e.scope || (e.clientId === 'internal' ? 'internal' : 'external');
+    const base = {entryId:e.id, personId:e.personId, date:e.date, start:e.start, status:e.status, joint:!!e.joint, source:e.source, ai:e.ai, scope, category:e.category||null};
     const allocs = (e.allocations||[]).filter(a => a && a.minutes > 0);
     const active = allocs.filter(a => a.attention !== 'background');
     const used = Math.min(e.minutes, sum(active, a => a.minutes));

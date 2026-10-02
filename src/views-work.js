@@ -101,7 +101,7 @@ VIEWS.entries = () => {
   const toApprove = list.filter(e => e.personId !== S.personId && e.status === 'submitted');
   const locked = isLocked(f.month);
   const byDay = groupBy(list, e => e.date);
-  return `<div class="head"><div><h1>Timesheet</h1><p>Every session, who did it, for which client and task. Drafts stay private until you submit them; ${S.settings.approvalMode==='self' ? 'submitting approves them.' : 'your partner approves submitted time before it counts toward payouts.'}</p></div>
+  return `<div class="head"><div><h1>Time Log</h1><p>Every session, who did it, for which client and task. Drafts stay private until you submit them; ${S.settings.approvalMode==='self' ? 'submitting approves them.' : 'your partner approves submitted time before it counts toward payouts.'}</p></div>
     <div class="row">${myDrafts.length ? `<button class="btn pri" data-act="submit-all" ${locked?'disabled':''}>Submit my ${myDrafts.length} drafts</button>` : ''}${toApprove.length && isPartner() ? `<button class="btn pri" data-act="approve-all" ${locked?'disabled':''}>Approve ${toApprove.length} from ${esc(person(toApprove[0].personId).name)}</button>` : ''}<button class="btn" data-act="log">Log time</button></div></div>
   ${locked ? `<div class="note">${monthLabel(f.month)} is locked for payouts. Entries are read-only.</div>` : ''}
   <div class="filters">
@@ -293,7 +293,7 @@ VIEWS.me = () => {
   // revenue associated with this person's work: client paid revenue in range × person's share of that client's hours
   const allR = laborRows().filter(r => inRange(r.date, from, to));
   let assoc = 0; for (const [c, rs] of Object.entries(groupBy(rows, r=>r.clientId))){ if (!c || c==='internal' || c==='prospects') continue; const tot = sum(allR.filter(r=>r.clientId===c), r=>r.minutes); const rev = sum(ledgerItems().filter(l => l.clientId===c), l => paidIn(l, from, to)); if (tot) assoc += rev * sum(rs, r=>r.minutes)/tot; }
-  return `<div class="head"><div><h1>${who===S.personId ? 'My dashboard' : esc(person(who).name)+'\'s dashboard'}</h1><p>Your hours, payout estimate and work mix. Speed figures sit next to complexity, revisions and sample size; they're for planning, not scoring.</p></div>
+  return `<div class="head"><div><h1>${who===S.personId ? 'Dashboard' : esc(person(who).name)+'\'s work'}</h1><p>Your hours, payout estimate and work mix. Speed figures sit next to complexity, revisions and sample size; they're for planning, not scoring.</p></div>
     ${isPartner() ? `<select class="in" id="me-person" style="width:auto">${partners().map(id => `<option value="${id}" ${id===who?'selected':''}>${esc(person(id).name)}</option>`).join('')}</select>` : ''}</div>
   <div class="band b4">
     ${band('Today', hm(span(t,t)))}${band('This week', hrs(span(weekStart(t), t))+' h')}${band('This month', hrs(span(m+'-01', t))+' h')}${band(y, hrs(span(y+'-01-01', t))+' h')}
@@ -351,4 +351,122 @@ CHARTS.meHeat = () => {
     yAxis:{type:'category', data:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], inverse:true, ...b._ax, splitLine:{show:false}},
     visualMap:{min:0, max:Math.max(1,...data.map(d=>d[2])), show:false, inRange:{color:[cssv('--heat-0'), cssv('--heat-1'), cssv('--heat-2'), cssv('--heat-3')]}},
     series:[{type:'heatmap', data, itemStyle:{borderColor:cssv('--panel'), borderWidth:2, borderRadius:3}}]};
+};
+
+/* ================================================================ Performance */
+/* Company scoreboard, spec sections 29 and 30. Operational visibility, not a
+ * ranking: where time goes, internal against external, and how close estimates
+ * land. Standard deviation needs at least two samples or it means nothing. */
+
+function scopeSplit(rows){
+  const ext = rows.filter(r => r.scope !== 'internal');
+  const int = rows.filter(r => r.scope === 'internal');
+  return {ext, int, extMin: sum(ext, r => r.minutes), intMin: sum(int, r => r.minutes)};
+}
+
+/* Estimated against actual, per task type, spec section 30. Types with no planning
+ * estimate are skipped rather than given an invented one. */
+function varianceRows(rows){
+  const byType = groupBy(rows.filter(r => r.typeId), r => r.typeId);
+  const out = [];
+  for (const [typeId, rs] of Object.entries(byType)){
+    const ty = ttype(typeId);
+    const estHours = ty?.hours;
+    if (!estHours) continue;
+    const byEntry = Object.values(groupBy(rs, r => r.entryId)).map(g => sum(g, r => r.minutes) / 60);
+    const n = byEntry.length;
+    const est = estHours;
+    const deltas = byEntry.map(h => h - est);
+    const mean = sum(deltas) / n;
+    const sd = n < 2 ? null : Math.sqrt(sum(deltas.map(d => (d - mean) ** 2)) / (n - 1));
+    out.push({typeId, name: typeName(typeId), n, est, actual: r2(sum(byEntry)/n),
+              variance: r2(mean), variancePct: est ? r2(mean/est*100) : null, sd: sd == null ? null : r2(sd)});
+  }
+  return out.sort((a,b) => Math.abs(b.variance) - Math.abs(a.variance));
+}
+
+VIEWS.performance = () => {
+  const [from, to, label] = rangeDates();
+  const rows = filteredRows();
+  const {ext, int, extMin, intMin} = scopeSplit(rows);
+  const total = extMin + intMin;
+  const V = varianceRows(rows);
+  const enough = V.filter(v => v.n >= 2);
+  const aiMin = sum(rows.filter(r => r.ai && r.ai !== 'none'), r => r.minutes);
+
+  const byPerson = Object.entries(groupBy(rows, r => r.personId))
+    .map(([id, rs]) => ({id, name: person(id).name, min: sum(rs, r => r.minutes),
+      ext: sum(rs.filter(r => r.scope !== 'internal'), r => r.minutes)}))
+    .sort((a,b) => b.min - a.min);
+
+  const byCategory = Object.entries(groupBy(rows.filter(r => r.category), r => r.category))
+    .map(([k, rs]) => [k, sum(rs, r => r.minutes)]).sort((a,b) => b[1] - a[1]);
+
+  return `<div class="head"><div><h1>Performance</h1><p>Where the team's time went, ${esc(label)}. Figures are for workload and estimate accuracy, not for ranking people.</p></div></div>
+  ${filterBar({person:true, client:true, family:false})}
+  <div class="band">
+    <div><div class="k">Total logged</div><div class="v">${hrs(total)} h</div></div>
+    <div><div class="k">External</div><div class="v">${hrs(extMin)} h</div><div class="s">${total ? Math.round(extMin/total*100) : 0}% of logged time</div></div>
+    <div><div class="k">Internal</div><div class="v">${hrs(intMin)} h</div><div class="s">${total ? Math.round(intMin/total*100) : 0}% of logged time</div></div>
+    <div><div class="k">AI assisted</div><div class="v">${total ? Math.round(aiMin/total*100) : 0}%</div><div class="s">${hrs(aiMin)} h marked assisted or led</div></div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="panel"><h3>External time by client</h3><div class="chart" data-chart="pfExt" style="height:300px"></div></div>
+    <div class="panel"><h3>Internal time by category</h3><div class="chart" data-chart="pfInt" style="height:300px"></div></div>
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>By person</h3>
+    ${byPerson.length ? `<table><thead><tr><th>Person</th><th class="r">Total</th><th class="r">External</th><th class="r">Internal</th><th class="r">External share</th></tr></thead><tbody>
+      ${byPerson.map(p => `<tr><td><b>${esc(p.name)}</b></td><td class="r num">${hrs(p.min)} h</td>
+        <td class="r num">${hrs(p.ext)} h</td><td class="r num">${hrs(p.min - p.ext)} h</td>
+        <td class="r num">${p.min ? Math.round(p.ext/p.min*100)+'%' : '–'}</td></tr>`).join('')}
+    </tbody></table>` : '<div class="muted">No time logged in this range.</div>'}
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>Estimated against actual</h3>
+    <p class="muted" style="margin-top:0">Only task types that carry a planning estimate appear. Standard deviation needs at least two sessions.</p>
+    ${enough.length || V.length ? `<div class="tw"><table><thead><tr><th>Task type</th><th class="r">Sessions</th><th class="r">Estimate</th><th class="r">Actual avg</th><th class="r">Variance</th><th class="r">Variance %</th><th class="r">Std dev</th></tr></thead><tbody>
+      ${V.slice(0,25).map(v => `<tr><td>${esc(v.name)}</td><td class="r num">${v.n}</td>
+        <td class="r num">${v.est.toFixed(2)} h</td><td class="r num">${v.actual.toFixed(2)} h</td>
+        <td class="r num" style="color:${v.variance > 0 ? 'var(--crit)' : 'var(--good)'}">${v.variance > 0 ? '+' : ''}${v.variance.toFixed(2)} h</td>
+        <td class="r num">${v.variancePct == null ? '–' : (v.variancePct > 0 ? '+' : '') + v.variancePct.toFixed(0) + '%'}</td>
+        <td class="r num">${v.sd == null ? '<span class="muted">Insufficient data</span>' : v.sd.toFixed(2)}</td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="muted">Insufficient data. No task type in this range has both an estimate and a logged session.</div>'}
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>Internal work by category</h3>
+    ${byCategory.length ? `<table><tbody>${byCategory.slice(0,20).map(([k,v]) =>
+      `<tr><td>${esc(k)}</td><td class="r num">${hrs(v)} h</td></tr>`).join('')}</tbody></table>`
+      : '<div class="muted">No categorised time yet. Categories are recorded from the new start flow onward.</div>'}
+  </div>`;
+};
+
+/* Charts register on CHARTS and mount through the existing data-chart sweep. */
+function donutOption(data){
+  return {
+    tooltip:{trigger:'item', formatter:'{b}: {c} h ({d}%)'},
+    legend:{type:'scroll', bottom:0, textStyle:{color:cssv('--ink-2')}},
+    series:[{type:'pie', radius:['46%','72%'], center:['50%','44%'], avoidLabelOverlap:true,
+      itemStyle:{borderColor:cssv('--panel'), borderWidth:2}, label:{show:false}, data}],
+  };
+}
+CHARTS.pfExt = () => {
+  const {ext} = scopeSplit(filteredRows());
+  const brand = id => S.clients[id]?.brandDark || S.clients[id]?.brandLight || null;
+  const data = Object.entries(groupBy(ext, r => r.clientId))
+    .map(([id, rs]) => ({name: clientName(id), value: +hrs(sum(rs, r => r.minutes)),
+      ...(brand(id) ? {itemStyle:{color: brand(id)}} : {})}))
+    .filter(d => d.value > 0).sort((a,b) => b.value - a.value);
+  return donutOption(data);
+};
+CHARTS.pfInt = () => {
+  const {int} = scopeSplit(filteredRows());
+  /* Internal slices use the Lucid orange ramp, spec sections 5 and 50. */
+  const ramp = ['--heat-3','--heat-2','--heat-1','--heat-0','--flare'].map(cssv);
+  const data = Object.entries(groupBy(int, r => r.category || famName(r.family) || 'Uncategorised'))
+    .map(([k, rs]) => ({name: k, value: +hrs(sum(rs, r => r.minutes))}))
+    .filter(d => d.value > 0).sort((a,b) => b.value - a.value)
+    .map((d,i) => ({...d, itemStyle:{color: ramp[i % ramp.length]}}));
+  return donutOption(data);
 };

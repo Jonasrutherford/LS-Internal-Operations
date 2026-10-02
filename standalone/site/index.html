@@ -525,7 +525,8 @@ function laborRows(){
   const rows = [];
   for (const e of allEntries()){
     if (!e.minutes || e.minutes <= 0) continue;
-    const base = {entryId:e.id, personId:e.personId, date:e.date, start:e.start, status:e.status, joint:!!e.joint, source:e.source, ai:e.ai};
+    const scope = e.scope || (e.clientId === 'internal' ? 'internal' : 'external');
+    const base = {entryId:e.id, personId:e.personId, date:e.date, start:e.start, status:e.status, joint:!!e.joint, source:e.source, ai:e.ai, scope, category:e.category||null};
     const allocs = (e.allocations||[]).filter(a => a && a.minutes > 0);
     const active = allocs.filter(a => a.attention !== 'background');
     const used = Math.min(e.minutes, sum(active, a => a.minutes));
@@ -800,14 +801,15 @@ async function saveConfig(doc, patch, reason, label){
  * Finances is admin-only and is filtered out for employees in renderRail(). */
 const NAV = [
   ['Work',     [['me','Dashboard'],['track','Start / Log'],['entries','Time Log'],['board','Tasks']]],
-  ['Insight',  [['company','Performance'],['projections','Company Projections']]],
-  ['Finances', [['revenue','Revenue'],['payouts','Payouts / Expenses'],['contracts','Contracts']]],
+  ['Insight',  [['performance','Performance'],['projections','Company Projections']]],
+  ['Finances', [['revenue','Revenue'],['payouts','Payouts / Expenses'],['contracts','Clients']]],
   ['System',   [['settings','Settings'],['admin','System Admin']]],
 ];
 /* Groups an employee never sees. Route guards in render() enforce this as well,
  * so hiding the link is a convenience rather than the control. */
 const ADMIN_GROUPS = ['Finances'];
 const ADMIN_VIEWS = ['revenue','payouts','contracts','expenses','admin','clients','tasks','projections','audit'];
+/* 'company' is the old combined dashboard, superseded by 'performance'. */
 const VIEWS = {};
 
 /* Permissions, spec section 47. Partners administer; everyone else is an employee
@@ -867,6 +869,11 @@ async function claimPerson(pid){
 }
 
 let _rq = false;
+/* Direct links and the back button should move between pages, not just clicks. */
+window.addEventListener('hashchange', () => {
+  const h = (location.hash||'').slice(1);
+  if (VIEWS[h] && h !== S.view) go(h);
+});
 function scheduleRender(){ if (_rq) return; _rq = true; requestAnimationFrame(() => { _rq = false; render(); }); }
 function go(view){ if (!VIEWS[view]) view = 'me'; if (!canSee(view)) view = 'me'; S.view = view; lsSet('view', view); try { history.replaceState(null, '', '#'+view); } catch {} render(); window.scrollTo(0,0); }
 
@@ -1052,6 +1059,38 @@ function pickType(id, code){
 }
 
 /* ClickUp removed for V1, spec section 4. No sync, no task ids, no API key. */
+
+/* Work classification, spec sections 9 and 10. Scope is the primary split and the
+ * category list changes with it. This sits above the existing task-type taxonomy,
+ * which still drives units and benchmarks, so older entries stay valid. */
+const EXTERNAL_CATEGORIES = [
+  'Sales & outreach','Lead generation','Lead qualification','Discovery calls',
+  'Proposals & closing','Client onboarding','Client communication','Account management',
+  'Client strategy','Service fulfillment','Content creation for clients','Client reporting',
+  'Client retention','Upselling & cross-selling','Partnership development','Customer support',
+  'Client feedback & satisfaction',
+];
+const INTERNAL_CATEGORIES = [
+  'Hiring & recruiting','Employee onboarding','Training & development','Internal operations',
+  'SOPs & process documentation','Workflow automation','Project management','Quality assurance',
+  'Finance & accounting','Legal & administration','Internal meetings','Performance management',
+  'Resource allocation','Strategic planning','Internal marketing','Technology & infrastructure',
+  'Team management',
+];
+const categoriesFor = scope => scope === 'internal' ? INTERNAL_CATEGORIES : EXTERNAL_CATEGORIES;
+
+/* Clients and Leads listed separately, spec section 11. Internal work carries no
+ * client, so "Internal" never appears here. */
+function partyOptions(sel){
+  const entries = Object.entries(S.clients).filter(([id,c]) => id !== 'internal' && (c.active !== false || id === sel));
+  const isLead = ([id,c]) => id === 'prospects' || c.kind === 'lead' || c.lead === true;
+  const group = (label, list) => list.length
+    ? `<optgroup label="${label}">${list.map(([id,c]) => `<option value="${id}" ${id===sel?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>` : '';
+  const byName = (a,b) => a[1].name.localeCompare(b[1].name);
+  return `<option value="">Choose…</option>`
+    + group('Clients', entries.filter(e => !isLead(e)).sort(byName))
+    + group('Leads',   entries.filter(isLead).sort(byName));
+}
 
 /* ---------- start sheet */
 function openStart(prefill={}){
@@ -1361,7 +1400,7 @@ VIEWS.entries = () => {
   const toApprove = list.filter(e => e.personId !== S.personId && e.status === 'submitted');
   const locked = isLocked(f.month);
   const byDay = groupBy(list, e => e.date);
-  return `<div class="head"><div><h1>Timesheet</h1><p>Every session, who did it, for which client and task. Drafts stay private until you submit them; ${S.settings.approvalMode==='self' ? 'submitting approves them.' : 'your partner approves submitted time before it counts toward payouts.'}</p></div>
+  return `<div class="head"><div><h1>Time Log</h1><p>Every session, who did it, for which client and task. Drafts stay private until you submit them; ${S.settings.approvalMode==='self' ? 'submitting approves them.' : 'your partner approves submitted time before it counts toward payouts.'}</p></div>
     <div class="row">${myDrafts.length ? `<button class="btn pri" data-act="submit-all" ${locked?'disabled':''}>Submit my ${myDrafts.length} drafts</button>` : ''}${toApprove.length && isPartner() ? `<button class="btn pri" data-act="approve-all" ${locked?'disabled':''}>Approve ${toApprove.length} from ${esc(person(toApprove[0].personId).name)}</button>` : ''}<button class="btn" data-act="log">Log time</button></div></div>
   ${locked ? `<div class="note">${monthLabel(f.month)} is locked for payouts. Entries are read-only.</div>` : ''}
   <div class="filters">
@@ -1553,7 +1592,7 @@ VIEWS.me = () => {
   // revenue associated with this person's work: client paid revenue in range × person's share of that client's hours
   const allR = laborRows().filter(r => inRange(r.date, from, to));
   let assoc = 0; for (const [c, rs] of Object.entries(groupBy(rows, r=>r.clientId))){ if (!c || c==='internal' || c==='prospects') continue; const tot = sum(allR.filter(r=>r.clientId===c), r=>r.minutes); const rev = sum(ledgerItems().filter(l => l.clientId===c), l => paidIn(l, from, to)); if (tot) assoc += rev * sum(rs, r=>r.minutes)/tot; }
-  return `<div class="head"><div><h1>${who===S.personId ? 'My dashboard' : esc(person(who).name)+'\'s dashboard'}</h1><p>Your hours, payout estimate and work mix. Speed figures sit next to complexity, revisions and sample size; they're for planning, not scoring.</p></div>
+  return `<div class="head"><div><h1>${who===S.personId ? 'Dashboard' : esc(person(who).name)+'\'s work'}</h1><p>Your hours, payout estimate and work mix. Speed figures sit next to complexity, revisions and sample size; they're for planning, not scoring.</p></div>
     ${isPartner() ? `<select class="in" id="me-person" style="width:auto">${partners().map(id => `<option value="${id}" ${id===who?'selected':''}>${esc(person(id).name)}</option>`).join('')}</select>` : ''}</div>
   <div class="band b4">
     ${band('Today', hm(span(t,t)))}${band('This week', hrs(span(weekStart(t), t))+' h')}${band('This month', hrs(span(m+'-01', t))+' h')}${band(y, hrs(span(y+'-01-01', t))+' h')}
@@ -1611,6 +1650,124 @@ CHARTS.meHeat = () => {
     yAxis:{type:'category', data:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], inverse:true, ...b._ax, splitLine:{show:false}},
     visualMap:{min:0, max:Math.max(1,...data.map(d=>d[2])), show:false, inRange:{color:[cssv('--heat-0'), cssv('--heat-1'), cssv('--heat-2'), cssv('--heat-3')]}},
     series:[{type:'heatmap', data, itemStyle:{borderColor:cssv('--panel'), borderWidth:2, borderRadius:3}}]};
+};
+
+/* ================================================================ Performance */
+/* Company scoreboard, spec sections 29 and 30. Operational visibility, not a
+ * ranking: where time goes, internal against external, and how close estimates
+ * land. Standard deviation needs at least two samples or it means nothing. */
+
+function scopeSplit(rows){
+  const ext = rows.filter(r => r.scope !== 'internal');
+  const int = rows.filter(r => r.scope === 'internal');
+  return {ext, int, extMin: sum(ext, r => r.minutes), intMin: sum(int, r => r.minutes)};
+}
+
+/* Estimated against actual, per task type, spec section 30. Types with no planning
+ * estimate are skipped rather than given an invented one. */
+function varianceRows(rows){
+  const byType = groupBy(rows.filter(r => r.typeId), r => r.typeId);
+  const out = [];
+  for (const [typeId, rs] of Object.entries(byType)){
+    const ty = ttype(typeId);
+    const estHours = ty?.hours;
+    if (!estHours) continue;
+    const byEntry = Object.values(groupBy(rs, r => r.entryId)).map(g => sum(g, r => r.minutes) / 60);
+    const n = byEntry.length;
+    const est = estHours;
+    const deltas = byEntry.map(h => h - est);
+    const mean = sum(deltas) / n;
+    const sd = n < 2 ? null : Math.sqrt(sum(deltas.map(d => (d - mean) ** 2)) / (n - 1));
+    out.push({typeId, name: typeName(typeId), n, est, actual: r2(sum(byEntry)/n),
+              variance: r2(mean), variancePct: est ? r2(mean/est*100) : null, sd: sd == null ? null : r2(sd)});
+  }
+  return out.sort((a,b) => Math.abs(b.variance) - Math.abs(a.variance));
+}
+
+VIEWS.performance = () => {
+  const [from, to, label] = rangeDates();
+  const rows = filteredRows();
+  const {ext, int, extMin, intMin} = scopeSplit(rows);
+  const total = extMin + intMin;
+  const V = varianceRows(rows);
+  const enough = V.filter(v => v.n >= 2);
+  const aiMin = sum(rows.filter(r => r.ai && r.ai !== 'none'), r => r.minutes);
+
+  const byPerson = Object.entries(groupBy(rows, r => r.personId))
+    .map(([id, rs]) => ({id, name: person(id).name, min: sum(rs, r => r.minutes),
+      ext: sum(rs.filter(r => r.scope !== 'internal'), r => r.minutes)}))
+    .sort((a,b) => b.min - a.min);
+
+  const byCategory = Object.entries(groupBy(rows.filter(r => r.category), r => r.category))
+    .map(([k, rs]) => [k, sum(rs, r => r.minutes)]).sort((a,b) => b[1] - a[1]);
+
+  return `<div class="head"><div><h1>Performance</h1><p>Where the team's time went, ${esc(label)}. Figures are for workload and estimate accuracy, not for ranking people.</p></div></div>
+  ${filterBar({person:true, client:true, family:false})}
+  <div class="band">
+    <div><div class="k">Total logged</div><div class="v">${hrs(total)} h</div></div>
+    <div><div class="k">External</div><div class="v">${hrs(extMin)} h</div><div class="s">${total ? Math.round(extMin/total*100) : 0}% of logged time</div></div>
+    <div><div class="k">Internal</div><div class="v">${hrs(intMin)} h</div><div class="s">${total ? Math.round(intMin/total*100) : 0}% of logged time</div></div>
+    <div><div class="k">AI assisted</div><div class="v">${total ? Math.round(aiMin/total*100) : 0}%</div><div class="s">${hrs(aiMin)} h marked assisted or led</div></div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="panel"><h3>External time by client</h3><div class="chart" data-chart="pfExt" style="height:300px"></div></div>
+    <div class="panel"><h3>Internal time by category</h3><div class="chart" data-chart="pfInt" style="height:300px"></div></div>
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>By person</h3>
+    ${byPerson.length ? `<table><thead><tr><th>Person</th><th class="r">Total</th><th class="r">External</th><th class="r">Internal</th><th class="r">External share</th></tr></thead><tbody>
+      ${byPerson.map(p => `<tr><td><b>${esc(p.name)}</b></td><td class="r num">${hrs(p.min)} h</td>
+        <td class="r num">${hrs(p.ext)} h</td><td class="r num">${hrs(p.min - p.ext)} h</td>
+        <td class="r num">${p.min ? Math.round(p.ext/p.min*100)+'%' : '–'}</td></tr>`).join('')}
+    </tbody></table>` : '<div class="muted">No time logged in this range.</div>'}
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>Estimated against actual</h3>
+    <p class="muted" style="margin-top:0">Only task types that carry a planning estimate appear. Standard deviation needs at least two sessions.</p>
+    ${enough.length || V.length ? `<div class="tw"><table><thead><tr><th>Task type</th><th class="r">Sessions</th><th class="r">Estimate</th><th class="r">Actual avg</th><th class="r">Variance</th><th class="r">Variance %</th><th class="r">Std dev</th></tr></thead><tbody>
+      ${V.slice(0,25).map(v => `<tr><td>${esc(v.name)}</td><td class="r num">${v.n}</td>
+        <td class="r num">${v.est.toFixed(2)} h</td><td class="r num">${v.actual.toFixed(2)} h</td>
+        <td class="r num" style="color:${v.variance > 0 ? 'var(--crit)' : 'var(--good)'}">${v.variance > 0 ? '+' : ''}${v.variance.toFixed(2)} h</td>
+        <td class="r num">${v.variancePct == null ? '–' : (v.variancePct > 0 ? '+' : '') + v.variancePct.toFixed(0) + '%'}</td>
+        <td class="r num">${v.sd == null ? '<span class="muted">Insufficient data</span>' : v.sd.toFixed(2)}</td></tr>`).join('')}
+    </tbody></table></div>` : '<div class="muted">Insufficient data. No task type in this range has both an estimate and a logged session.</div>'}
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>Internal work by category</h3>
+    ${byCategory.length ? `<table><tbody>${byCategory.slice(0,20).map(([k,v]) =>
+      `<tr><td>${esc(k)}</td><td class="r num">${hrs(v)} h</td></tr>`).join('')}</tbody></table>`
+      : '<div class="muted">No categorised time yet. Categories are recorded from the new start flow onward.</div>'}
+  </div>`;
+};
+
+/* Charts register on CHARTS and mount through the existing data-chart sweep. */
+function donutOption(data){
+  return {
+    tooltip:{trigger:'item', formatter:'{b}: {c} h ({d}%)'},
+    legend:{type:'scroll', bottom:0, textStyle:{color:cssv('--ink-2')}},
+    series:[{type:'pie', radius:['46%','72%'], center:['50%','44%'], avoidLabelOverlap:true,
+      itemStyle:{borderColor:cssv('--panel'), borderWidth:2}, label:{show:false}, data}],
+  };
+}
+CHARTS.pfExt = () => {
+  const {ext} = scopeSplit(filteredRows());
+  const brand = id => S.clients[id]?.brandDark || S.clients[id]?.brandLight || null;
+  const data = Object.entries(groupBy(ext, r => r.clientId))
+    .map(([id, rs]) => ({name: clientName(id), value: +hrs(sum(rs, r => r.minutes)),
+      ...(brand(id) ? {itemStyle:{color: brand(id)}} : {})}))
+    .filter(d => d.value > 0).sort((a,b) => b.value - a.value);
+  return donutOption(data);
+};
+CHARTS.pfInt = () => {
+  const {int} = scopeSplit(filteredRows());
+  /* Internal slices use the Lucid orange ramp, spec sections 5 and 50. */
+  const ramp = ['--heat-3','--heat-2','--heat-1','--heat-0','--flare'].map(cssv);
+  const data = Object.entries(groupBy(int, r => r.category || famName(r.family) || 'Uncategorised'))
+    .map(([k, rs]) => ({name: k, value: +hrs(sum(rs, r => r.minutes))}))
+    .filter(d => d.value > 0).sort((a,b) => b.value - a.value)
+    .map((d,i) => ({...d, itemStyle:{color: ramp[i % ramp.length]}}));
+  return donutOption(data);
 };
 
 /* ================================================================ CLIENTS */
@@ -1812,16 +1969,72 @@ VIEWS.revenue = () => {
   </tbody></table></div>`;
 };
 VIEWS.contracts = () => {
-  const C = contractItems().sort((a,b) => (isActiveContract(b)-isActiveContract(a)) || b.start.localeCompare(a.start));
-  return `<div class="head"><div><h1>Contracts</h1><p>Retainers and scheduled work. Remaining payments and projected revenue count billing dates after today through the end date, for active contracts only.</p></div><button class="btn pri" data-act="fin-new" data-k="contracts">Add contract</button></div>
-  <div class="band"><div><div class="k">Monthly recurring</div><div class="v">${money(mrr())}</div><div class="s">active today, normalized to a month</div></div>
-    <div><div class="k">Projected remaining</div><div class="v">${money(sum(C, c => contractFuture(c).amount))}</div><div class="s">all active contracts to their end dates</div></div>
-    <div><div class="k">Active</div><div class="v">${C.filter(isActiveContract).length}</div></div></div>
-  <div class="tw" style="margin-top:14px"><table><thead><tr><th>Client</th><th>Type</th><th class="r">Amount</th><th>Billing</th><th>Start</th><th>End</th><th>Renewal</th><th>Lifecycle</th><th class="r">Payments left</th><th class="r">Projected</th><th class="r">Planned h/mo</th><th></th></tr></thead><tbody>
-  ${C.map(c => { const f = contractFuture(c); return `<tr><td><b>${esc(clientName(c.clientId))}</b>${c.needsReview?' <span class="chip warn">check</span>':''}</td><td>${esc(c.contractType)}</td><td class="r num">${money2(c.amount)}</td><td>${esc(c.frequency)}, day ${esc(c.billingDay)}</td><td class="num">${dateLabel(c.start)}</td><td class="num">${dateLabel(c.end)}</td><td class="num">${dateLabel(c.renewalDate)}</td>
-    <td><span class="chip ${isActiveContract(c)?'good':''}">${esc(c.lifecycle)}</span></td><td class="r num">${f.dates.length||'–'}</td><td class="r num">${f.amount?money(f.amount):'–'}</td><td class="r num">${c.plannedMonthlyHours||'–'}</td><td><button class="btn sm ghost" data-act="fin-edit" data-k="contracts" data-id="${c.id}">Edit</button></td></tr>`; }).join('')}
-  </tbody></table></div>`;
+  const C = contractItems().filter(isActiveContract).sort((a,b) => clientName(a.clientId).localeCompare(clientName(b.clientId)));
+  const FREQ = {monthly:'Monthly', quarterly:'Quarterly', semiannual:'Biannually', annual:'Annually', commission:'Commission'};
+  /* Spec section 37: planned hours, renewal date and end date are gone. Section 38:
+   * ad commission shows a percentage, never a dollar amount. */
+  return `<div class="head"><div><h1>Clients</h1><p>Active agreements only. Billing frequency is recorded exactly as agreed; the monthly column is derived for analytics and never changes what a client is billed.</p></div><button class="btn pri" data-act="fin-new" data-k="contracts">Add client agreement</button></div>
+  <div class="band">
+    <div><div class="k">Monthly recurring</div><div class="v">${money(mrr())}</div><div class="s">fixed-cycle agreements, normalized</div></div>
+    <div><div class="k">Active clients</div><div class="v">${new Set(C.map(c => c.clientId)).size}</div></div>
+    <div><div class="k">Commission based</div><div class="v">${C.filter(c => c.contractType === 'ad commission').length}</div><div class="s">no fixed monthly value</div></div>
+  </div>
+  <div class="tw" style="margin-top:14px"><table><thead><tr>
+    <th>Client</th><th>Type</th><th class="r">Amount</th><th class="r">Monthly equivalent</th><th>Billing</th><th>Since</th><th></th>
+  </tr></thead><tbody>
+  ${C.map(c => {
+    const commission = c.contractType === 'ad commission';
+    const months = {monthly:1, quarterly:3, semiannual:6, annual:12}[c.frequency];
+    const monthly = (!commission && months && c.amount != null) ? c.amount / months : null;
+    return `<tr>
+      <td><b>${esc(clientName(c.clientId))}</b></td>
+      <td>${commission ? 'Ad Commission' : esc(c.contractType)}</td>
+      <td class="r num">${commission
+        ? (c.percentCommission != null ? esc(c.percentCommission)+'%' : '<span class="chip warn">rate not set</span>')
+        : money2(c.amount)}</td>
+      <td class="r num">${monthly != null ? money2(monthly) : '<span class="muted">N/A</span>'}</td>
+      <td>${esc(FREQ[c.frequency] || c.frequency)}${c.billingDay ? ', day '+esc(c.billingDay) : ''}</td>
+      <td class="num">${dateLabel(c.start)}</td>
+      <td><button class="btn sm ghost" data-act="fin-edit" data-k="contracts" data-id="${c.id}">Edit</button>
+          <button class="btn sm" data-act="bill-add" data-id="${c.id}">Add charge</button></td></tr>`;
+  }).join('')}
+  </tbody></table></div>
+  <p class="muted" style="margin-top:10px">Pricing changes are edits, not new agreements. Use Add charge for one-off or hourly work on an existing client, spec sections 40 to 42.</p>`;
 };
+
+/* One-off and hourly charges on an existing client, spec sections 41 and 42.
+ * Writes a revenue line rather than forcing a duplicate client or contract. */
+function openBillModal(contractId){
+  const c = contractItems().find(x => x.id === contractId); if (!c) return;
+  openModal(`<header><h2>Add charge</h2><button class="btn ghost" data-act="close">Close</button></header>
+  <div class="body">
+    <p class="muted" style="margin-top:0">Billed to <b>${esc(clientName(c.clientId))}</b> on top of their existing agreement.</p>
+    <div class="fg">
+      <label class="field"><span>Type</span><select class="in" id="bl-type">
+        <option value="one-off">One-off project</option>
+        <option value="hourly">Hourly</option>
+        <option value="ad commission">Ad commission</option>
+      </select></label>
+      <label class="field"><span>Amount</span><input class="in num" type="number" step="0.01" min="0" id="bl-amt"></label>
+      <label class="field"><span>Date</span><input class="in" type="date" id="bl-date" value="${today()}"></label>
+    </div>
+    <label class="field"><span>Description</span><input class="in" id="bl-desc" placeholder="What is being billed"></label>
+    <div class="err" id="bl-err"></div>
+  </div>
+  <footer><span></span><button class="btn pri" data-act="bill-save" data-id="${contractId}">Record charge</button></footer>`);
+}
+async function saveBill(contractId){
+  const c = contractItems().find(x => x.id === contractId); if (!c) return;
+  const amt = +$('#bl-amt').value, date = $('#bl-date').value, desc = $('#bl-desc').value.trim();
+  if (!amt || amt <= 0){ $('#bl-err').textContent = 'Enter an amount.'; return; }
+  if (!date){ $('#bl-err').textContent = 'Pick a date.'; return; }
+  const id = uid('rev');
+  await saveFin('ledger', {id, clientId:c.clientId, clientName:clientName(c.clientId), contractId:c.id,
+    revenueType:$('#bl-type').value, amount:amt, invoiceDate:date, paidDate:null, paidAmount:0,
+    status:'invoiced', poolEligible:true, notes:desc, source:'manual', deleted:false}, 'One-off charge added');
+  closeModal(); toast('Charge recorded');
+}
+
 VIEWS.expenses = () => {
   const X = expenseItems().sort((a,b) => (b.recurring-a.recurring) || b.date.localeCompare(a.date));
   const y = today().slice(0,4); const occ = expensesIn(y+'-01-01', today());
@@ -2033,6 +2246,8 @@ async function onClick(ev){
       ($('#st-client') || $('#st-cat'))?.focus();
       break;
     }
+    case 'bill-add': openBillModal(a.dataset.id); break;
+    case 'bill-save': await saveBill(a.dataset.id); break;
     case 'admin-tab': UI.adminTab = a.dataset.tab; render(); break;
     case 'start-go': await startGo(); break;
     case 'quickstart': await startTimer({clientId:a.dataset.c, typeId:a.dataset.t}); break;

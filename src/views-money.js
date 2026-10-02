@@ -197,16 +197,72 @@ VIEWS.revenue = () => {
   </tbody></table></div>`;
 };
 VIEWS.contracts = () => {
-  const C = contractItems().sort((a,b) => (isActiveContract(b)-isActiveContract(a)) || b.start.localeCompare(a.start));
-  return `<div class="head"><div><h1>Contracts</h1><p>Retainers and scheduled work. Remaining payments and projected revenue count billing dates after today through the end date, for active contracts only.</p></div><button class="btn pri" data-act="fin-new" data-k="contracts">Add contract</button></div>
-  <div class="band"><div><div class="k">Monthly recurring</div><div class="v">${money(mrr())}</div><div class="s">active today, normalized to a month</div></div>
-    <div><div class="k">Projected remaining</div><div class="v">${money(sum(C, c => contractFuture(c).amount))}</div><div class="s">all active contracts to their end dates</div></div>
-    <div><div class="k">Active</div><div class="v">${C.filter(isActiveContract).length}</div></div></div>
-  <div class="tw" style="margin-top:14px"><table><thead><tr><th>Client</th><th>Type</th><th class="r">Amount</th><th>Billing</th><th>Start</th><th>End</th><th>Renewal</th><th>Lifecycle</th><th class="r">Payments left</th><th class="r">Projected</th><th class="r">Planned h/mo</th><th></th></tr></thead><tbody>
-  ${C.map(c => { const f = contractFuture(c); return `<tr><td><b>${esc(clientName(c.clientId))}</b>${c.needsReview?' <span class="chip warn">check</span>':''}</td><td>${esc(c.contractType)}</td><td class="r num">${money2(c.amount)}</td><td>${esc(c.frequency)}, day ${esc(c.billingDay)}</td><td class="num">${dateLabel(c.start)}</td><td class="num">${dateLabel(c.end)}</td><td class="num">${dateLabel(c.renewalDate)}</td>
-    <td><span class="chip ${isActiveContract(c)?'good':''}">${esc(c.lifecycle)}</span></td><td class="r num">${f.dates.length||'–'}</td><td class="r num">${f.amount?money(f.amount):'–'}</td><td class="r num">${c.plannedMonthlyHours||'–'}</td><td><button class="btn sm ghost" data-act="fin-edit" data-k="contracts" data-id="${c.id}">Edit</button></td></tr>`; }).join('')}
-  </tbody></table></div>`;
+  const C = contractItems().filter(isActiveContract).sort((a,b) => clientName(a.clientId).localeCompare(clientName(b.clientId)));
+  const FREQ = {monthly:'Monthly', quarterly:'Quarterly', semiannual:'Biannually', annual:'Annually', commission:'Commission'};
+  /* Spec section 37: planned hours, renewal date and end date are gone. Section 38:
+   * ad commission shows a percentage, never a dollar amount. */
+  return `<div class="head"><div><h1>Clients</h1><p>Active agreements only. Billing frequency is recorded exactly as agreed; the monthly column is derived for analytics and never changes what a client is billed.</p></div><button class="btn pri" data-act="fin-new" data-k="contracts">Add client agreement</button></div>
+  <div class="band">
+    <div><div class="k">Monthly recurring</div><div class="v">${money(mrr())}</div><div class="s">fixed-cycle agreements, normalized</div></div>
+    <div><div class="k">Active clients</div><div class="v">${new Set(C.map(c => c.clientId)).size}</div></div>
+    <div><div class="k">Commission based</div><div class="v">${C.filter(c => c.contractType === 'ad commission').length}</div><div class="s">no fixed monthly value</div></div>
+  </div>
+  <div class="tw" style="margin-top:14px"><table><thead><tr>
+    <th>Client</th><th>Type</th><th class="r">Amount</th><th class="r">Monthly equivalent</th><th>Billing</th><th>Since</th><th></th>
+  </tr></thead><tbody>
+  ${C.map(c => {
+    const commission = c.contractType === 'ad commission';
+    const months = {monthly:1, quarterly:3, semiannual:6, annual:12}[c.frequency];
+    const monthly = (!commission && months && c.amount != null) ? c.amount / months : null;
+    return `<tr>
+      <td><b>${esc(clientName(c.clientId))}</b></td>
+      <td>${commission ? 'Ad Commission' : esc(c.contractType)}</td>
+      <td class="r num">${commission
+        ? (c.percentCommission != null ? esc(c.percentCommission)+'%' : '<span class="chip warn">rate not set</span>')
+        : money2(c.amount)}</td>
+      <td class="r num">${monthly != null ? money2(monthly) : '<span class="muted">N/A</span>'}</td>
+      <td>${esc(FREQ[c.frequency] || c.frequency)}${c.billingDay ? ', day '+esc(c.billingDay) : ''}</td>
+      <td class="num">${dateLabel(c.start)}</td>
+      <td><button class="btn sm ghost" data-act="fin-edit" data-k="contracts" data-id="${c.id}">Edit</button>
+          <button class="btn sm" data-act="bill-add" data-id="${c.id}">Add charge</button></td></tr>`;
+  }).join('')}
+  </tbody></table></div>
+  <p class="muted" style="margin-top:10px">Pricing changes are edits, not new agreements. Use Add charge for one-off or hourly work on an existing client, spec sections 40 to 42.</p>`;
 };
+
+/* One-off and hourly charges on an existing client, spec sections 41 and 42.
+ * Writes a revenue line rather than forcing a duplicate client or contract. */
+function openBillModal(contractId){
+  const c = contractItems().find(x => x.id === contractId); if (!c) return;
+  openModal(`<header><h2>Add charge</h2><button class="btn ghost" data-act="close">Close</button></header>
+  <div class="body">
+    <p class="muted" style="margin-top:0">Billed to <b>${esc(clientName(c.clientId))}</b> on top of their existing agreement.</p>
+    <div class="fg">
+      <label class="field"><span>Type</span><select class="in" id="bl-type">
+        <option value="one-off">One-off project</option>
+        <option value="hourly">Hourly</option>
+        <option value="ad commission">Ad commission</option>
+      </select></label>
+      <label class="field"><span>Amount</span><input class="in num" type="number" step="0.01" min="0" id="bl-amt"></label>
+      <label class="field"><span>Date</span><input class="in" type="date" id="bl-date" value="${today()}"></label>
+    </div>
+    <label class="field"><span>Description</span><input class="in" id="bl-desc" placeholder="What is being billed"></label>
+    <div class="err" id="bl-err"></div>
+  </div>
+  <footer><span></span><button class="btn pri" data-act="bill-save" data-id="${contractId}">Record charge</button></footer>`);
+}
+async function saveBill(contractId){
+  const c = contractItems().find(x => x.id === contractId); if (!c) return;
+  const amt = +$('#bl-amt').value, date = $('#bl-date').value, desc = $('#bl-desc').value.trim();
+  if (!amt || amt <= 0){ $('#bl-err').textContent = 'Enter an amount.'; return; }
+  if (!date){ $('#bl-err').textContent = 'Pick a date.'; return; }
+  const id = uid('rev');
+  await saveFin('ledger', {id, clientId:c.clientId, clientName:clientName(c.clientId), contractId:c.id,
+    revenueType:$('#bl-type').value, amount:amt, invoiceDate:date, paidDate:null, paidAmount:0,
+    status:'invoiced', poolEligible:true, notes:desc, source:'manual', deleted:false}, 'One-off charge added');
+  closeModal(); toast('Charge recorded');
+}
+
 VIEWS.expenses = () => {
   const X = expenseItems().sort((a,b) => (b.recurring-a.recurring) || b.date.localeCompare(a.date));
   const y = today().slice(0,4); const occ = expensesIn(y+'-01-01', today());
@@ -418,6 +474,8 @@ async function onClick(ev){
       ($('#st-client') || $('#st-cat'))?.focus();
       break;
     }
+    case 'bill-add': openBillModal(a.dataset.id); break;
+    case 'bill-save': await saveBill(a.dataset.id); break;
     case 'admin-tab': UI.adminTab = a.dataset.tab; render(); break;
     case 'start-go': await startGo(); break;
     case 'quickstart': await startTimer({clientId:a.dataset.c, typeId:a.dataset.t}); break;
