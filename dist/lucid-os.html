@@ -263,6 +263,13 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
 .state-pill.is-running{background:var(--good-soft);color:var(--good)}
 .state-pill.is-paused{background:var(--signal);color:var(--signal-ink)}
 .timer.paused .clock{opacity:.6}
+
+/* Goal progress bar, Lucid gradient. */
+.goalbar{position:relative;height:14px;border-radius:999px;background:var(--panel-2);overflow:visible;border:1px solid var(--line)}
+.goalbar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--heat-1),var(--heat-2),var(--heat-3))}
+.goalbar-pace{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink-2);border-radius:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:900px){ .grid2{grid-template-columns:1fr} }
 </style>
 <div id="root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
@@ -427,7 +434,7 @@ function splitCents(total, weights){
 function hoursFor(m, personId){
   const from = m+'-01', to = monthEnd(m);
   const rows = laborRows().filter(r => r.personId === personId && inRange(r.date, from, to) && r.payoutEligible);
-  return { approved: sum(rows.filter(r => r.status === 'approved'), r => r.minutes), pending: sum(rows.filter(r => r.status !== 'approved'), r => r.minutes) };
+  return { approved: sum(rows, r => r.minutes), pending: 0 };
 }
 /* Payouts.
  *
@@ -557,7 +564,7 @@ function benchmarks(){
   if (S._bm && S._bv === S.v) return S._bm;
   const by = {};
   for (const r of laborRows()){
-    if (r.status !== 'approved' || !(r.units > 0) || !r.typeId || r.background) continue;
+    if (!(r.units > 0) || !r.typeId || r.background) continue;
     const e = entryById(r.entryId);
     (by[r.typeId] ||= []).push({perUnit: r.minutes / r.units, units:r.units, minutes:r.minutes, ai: e?.ai && e.ai !== 'none', complexity: e?.complexity, revision: +e?.revision||0, date:r.date});
   }
@@ -824,7 +831,7 @@ function onVisibility(){
 async function timerSet(patch){ await S.db.doc('timers/'+S.personId).set({...(S.timers[S.personId]||{}), ...patch, updatedAt:Date.now(), device:navigator.userAgent.slice(0,60)}); }
 async function startTimer(d){
   if (S.timers[S.personId]?.running){ toast('A timer is already running. Use Switch.'); return; }
-  await timerSet({running:true, start:Date.now(), pausedMs:0, pausedAt:null, scope:d.scope||'external', clientId:d.clientId, category:d.category||null, typeId:d.typeId||null, taskName:d.taskName||null, note:''});
+  await timerSet({running:true, start:Date.now(), pausedMs:0, pausedAt:null, scope:d.scope||'external', clientId:d.clientId, categoryId:d.categoryId||null, typeId:d.typeId||null, taskName:d.taskName||null, note:''});
   toast('Timer started');
 }
 async function pauseTimer(){ const t = S.timers[S.personId]; if (t?.running && !t.pausedAt) await timerSet({pausedAt:Date.now()}); }
@@ -838,7 +845,7 @@ function stopTimer(){
   openEntryEditor({
     personId:S.personId, date:dayKey(t.start), start:t.start, end,
     pausedMin: Math.round((t.pausedMs||0)/60000),
-    scope:t.scope||'external', clientId:t.clientId, category:t.category||null,
+    scope:t.scope||'external', clientId:t.clientId, categoryId:t.categoryId||null,
     typeId:t.typeId, taskName:t.taskName||null, note:'', unitType:ty?.unit||null,
     billable: defaultBillable(t.typeId, t.clientId), payoutEligible: ty?.payoutEligible !== false,
     cls: ty?.cls || null, status:'draft', source:'lucid',
@@ -897,74 +904,31 @@ function pickType(id, code){
 
 /* ClickUp removed for V1, spec section 4. No sync, no task ids, no API key. */
 
-/* Work classification, spec sections 9 and 10. Scope is the primary split and the
- * category list changes with it. This sits above the existing task-type taxonomy,
- * which still drives units and benchmarks, so older entries stay valid. */
-const EXTERNAL_CATEGORIES = [
-  'Sales & outreach','Lead generation','Lead qualification','Discovery calls',
-  'Proposals & closing','Client onboarding','Client communication','Account management',
-  'Client strategy','Service fulfillment','Content creation for clients','Client reporting',
-  'Client retention','Upselling & cross-selling','Partnership development','Customer support',
-  'Client feedback & satisfaction',
-];
-const INTERNAL_CATEGORIES = [
-  'Hiring & recruiting','Employee onboarding','Training & development','Internal operations',
-  'SOPs & process documentation','Workflow automation','Project management','Quality assurance',
-  'Finance & accounting','Legal & administration','Internal meetings','Performance management',
-  'Resource allocation','Strategic planning','Internal marketing','Technology & infrastructure',
-  'Team management',
-];
+/* Work classification. Categories and task types both carry a scope, so internal
+ * logging can never surface external work and the reverse holds too. The taxonomy
+ * is data, editable in System Admin, not a list hard-coded here. */
+const CATS = () => Object.values(S.taxonomy.categories || {}).filter(c => c.active !== false).sort((a,b) => a.order - b.order);
+const categoriesFor = scope => CATS().filter(c => c.scope === scope || c.scope === 'both');
+const catName = id => (S.taxonomy.categories || {})[id]?.name || '';
+const catOf = typeId => ttype(typeId)?.categoryId || null;
+/* Scope of a logged row: explicit first, then the task type, then the category. */
+function scopeOfType(typeId){
+  const t = ttype(typeId); if (!t) return null;
+  return t.scope || (S.taxonomy.categories || {})[t.categoryId]?.scope || null;
+}
+function typesFor(scope, categoryId){
+  return Object.values(S.taxonomy.types || {})
+    .filter(t => t.active !== false
+      && (t.scope === scope || t.scope === 'both')
+      && (!categoryId || t.categoryId === categoryId || t.categoryId == null))
+    .sort((a,b) => (a.order - b.order) || a.name.localeCompare(b.name));
+}
 
-/* Each category maps to the service families whose task types belong under it,
- * so choosing a category narrows the task list instead of showing all 80.
- * A category with no entry here falls back to every family. */
-const CATEGORY_FAMILIES = {
-  // External
-  'Sales & outreach':             ['sales'],
-  'Lead generation':              ['sales'],
-  'Lead qualification':           ['sales'],
-  'Discovery calls':              ['sales'],
-  'Proposals & closing':          ['sales','strategy'],
-  'Client onboarding':            ['client'],
-  'Client communication':         ['client'],
-  'Account management':           ['client'],
-  'Client strategy':              ['strategy'],
-  'Service fulfillment':          ['web','seo','paid','email','automation','design','social','video'],
-  'Content creation for clients': ['editorial','social','video','design'],
-  'Client reporting':             ['reporting'],
-  'Client retention':             ['client'],
-  'Upselling & cross-selling':    ['sales','client'],
-  'Partnership development':      ['sales'],
-  'Customer support':             ['client'],
-  'Client feedback & satisfaction': ['client'],
-  // Internal
-  'Hiring & recruiting':          ['internal'],
-  'Employee onboarding':          ['internal'],
-  'Training & development':       ['internal'],
-  'Internal operations':          ['internal'],
-  'SOPs & process documentation': ['internal'],
-  'Workflow automation':          ['automation','internal'],
-  'Project management':           ['internal'],
-  'Quality assurance':            ['internal'],
-  'Finance & accounting':         ['internal'],
-  'Legal & administration':       ['internal'],
-  'Internal meetings':            ['internal'],
-  'Performance management':       ['internal'],
-  'Resource allocation':          ['internal'],
-  'Strategic planning':           ['strategy','internal'],
-  'Internal marketing':           ['social','editorial','design','video','web','seo','paid','email'],
-  'Technology & infrastructure':  ['automation','web','internal'],
-  'Team management':              ['internal'],
-};
-const familiesForCategory = cat => CATEGORY_FAMILIES[cat] || null;
-
-const categoriesFor = scope => scope === 'internal' ? INTERNAL_CATEGORIES : EXTERNAL_CATEGORIES;
-
-/* Clients and Leads listed separately, spec section 11. Internal work carries no
- * client, so "Internal" never appears here. */
+/* Clients and Leads only. Internal is a scope and never appears as a client. */
 function partyOptions(sel){
-  const entries = Object.entries(S.clients).filter(([id,c]) => id !== 'internal' && (c.active !== false || id === sel));
-  const isLead = ([id,c]) => id === 'prospects' || c.kind === 'lead' || c.lead === true;
+  const entries = Object.entries(S.clients).filter(([id,c]) =>
+    id !== 'internal' && c.kind !== 'internal' && (c.active !== false || id === sel));
+  const isLead = ([id,c]) => id === 'prospects' || c.kind === 'lead';
   const group = (label, list) => list.length
     ? `<optgroup label="${label}">${list.map(([id,c]) => `<option value="${id}" ${id===sel?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>` : '';
   const byName = (a,b) => a[1].name.localeCompare(b[1].name);
@@ -992,26 +956,38 @@ function openStart(prefill={}){
 }
 /* Rebuilt whenever the scope toggle changes, so the category list always matches. */
 function startFields(scope, prefill={}){
+  const cats = categoriesFor(scope);
   return `${scope === 'external' ? `<label class="field"><span>Client or lead</span><select class="in" id="st-client" autofocus>${partyOptions(prefill.clientId)}</select></label>` : ''}
     <label class="field"><span>Category</span><select class="in" id="st-cat" ${scope==='internal'?'autofocus':''}>
       <option value="">Choose…</option>
-      ${categoriesFor(scope).map(c => `<option value="${esc(c)}" ${c===prefill.category?'selected':''}>${esc(c)}</option>`).join('')}
+      ${cats.map(c => `<option value="${esc(c.id)}" ${c.id===prefill.categoryId?'selected':''}>${esc(c.name)}</option>`).join('')}
     </select></label>
-    <label class="field"><span>Task type</span>${typeCombo('st-type', prefill.typeId)}</label>
-    <label class="field" id="st-other-wrap" hidden><span>Create task name</span><input class="in" id="st-other" placeholder="Name this task"></label>`;
+    <label class="field"><span>Task</span><select class="in" id="st-type" disabled>
+      <option value="">Choose a category first</option>
+    </select></label>
+    <label class="field" id="st-other-wrap" hidden><span>Name this task</span><input class="in" id="st-other" placeholder="What are you doing"></label>`;
+}
+/* Task options for the chosen scope and category, plus Other. Nothing from the
+ * opposite scope can appear here. */
+function taskOptions(scope, categoryId, sel){
+  const list = typesFor(scope, categoryId).filter(t => !t.code.startsWith('OTHER-'));
+  const other = `OTHER-${scope.slice(0,3).toUpperCase()}`;
+  return `<option value="">Choose…</option>`
+    + list.map(t => `<option value="${esc(t.code)}" ${t.code===sel?'selected':''}>${esc(t.name)}${t.unit?` (per ${esc(t.unit)})`:''}</option>`).join('')
+    + `<option value="${other}" ${sel===other?'selected':''}>Other…</option>`;
 }
 async function startGo(){
   const scope = UI.startScope || 'external';
   const clientId = scope === 'external' ? ($('#st-client')?.value || '') : 'internal';
-  const category = $('#st-cat')?.value || '';
+  const categoryId = $('#st-cat')?.value || '';
   const typeId = $('#st-type')?.value || '';
   const otherName = ($('#st-other')?.value || '').trim();
   const err = $('#st-err');
   if (scope === 'external' && !clientId){ err.textContent = 'Choose a client or lead.'; return; }
-  if (!category){ err.textContent = 'Choose a category.'; return; }
+  if (!categoryId){ err.textContent = 'Choose a category.'; return; }
   if (!typeId && !otherName){ err.textContent = 'Choose a task type, or pick Other and name it.'; return; }
   closeModal();
-  await startTimer({scope, clientId, category, typeId, taskName: otherName || null});
+  await startTimer({scope, clientId, categoryId, typeId: typeId.startsWith('OTHER-') ? null : typeId, taskName: otherName || null});
 }
 
 /* ---------- entry editor (new, edit, stop-timer completion) */
@@ -1051,9 +1027,9 @@ function openEntryEditor(e, opts={}){
     <div class="spread"><span id="ed-dur" class="eyebrow"></span></div>
     <div class="fg">
       <label class="field"><span>Client or lead</span><select class="in" id="ed-client">${partyOptions(e.clientId)}</select></label>
-      <label class="field"><span>Category</span><select class="in" id="ed-cat"><option value="">Choose…</option>${categoriesFor(e.scope||'external').map(c => `<option value="${esc(c)}" ${c===e.category?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
+      <label class="field"><span>Category</span><select class="in" id="ed-cat"><option value="">Choose…</option>${categoriesFor(e.scope||'external').map(c => `<option value="${esc(c.id)}" ${c.id===e.categoryId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
     </div>
-    <label class="field"><span>Task type</span>${typeCombo('ed-type', e.typeId)}</label>
+    <label class="field"><span>Task</span><select class="in" id="ed-type">${taskOptions(e.scope||'external', e.categoryId, e.typeId)}</select></label>
     `}
 
     ${/* Units exist only where the task type defines one, spec section 14. The unit
@@ -1114,7 +1090,7 @@ function readEditor(){
     e.minutes = Math.max(0, Math.round((e.end - e.start)/60000) - e.pausedMin);
   } else { e.start = e.start || null; e.end = e.end || null; }
   e.clientId = $('#ed-client').value || null; e.typeId = $('#ed-type').value || null;
-  if ($('#ed-cat')) e.category = $('#ed-cat').value || null;
+  if ($('#ed-cat')) e.categoryId = $('#ed-cat').value || null;
   e.scope = e.clientId === 'internal' ? 'internal' : (e.scope || 'external');
   const u = $('#ed-units')?.value; e.units = (u === '' || u == null) ? null : +u;
   e.unitType = $('#ed-unit')?.value || null;
@@ -1207,7 +1183,12 @@ function filteredRows(f=F()){
   const [from, to] = rangeDates(f);
   return laborRows().filter(r => inRange(r.date, from, to) && (f.person==='all' || r.personId===f.person) && (f.scope==='all' || !f.scope || r.scope===f.scope) && (f.client==='all' || r.clientId===f.client) && (f.family==='all' || r.family===f.family));
 }
-function statusChip(s){ return ({draft:`<span class="chip">Draft</span>`, submitted:`<span class="chip warn">Submitted</span>`, approved:`<span class="chip good">Approved</span>`, rejected:`<span class="chip crit">Rejected</span>`})[s] || `<span class="chip">${esc(s)}</span>`; }
+/* No approval workflow: nobody is signing off that time happened. The only state
+ * that matters is whether the task itself is finished. */
+function statusChip(e){
+  const done = typeof e === 'object' ? e.completed !== false : e !== false;
+  return done ? `<span class="chip good">Finished</span>` : `<span class="chip warn">In progress</span>`;
+}
 function baseChart(){
   const ink2 = cssv('--ink-2'), ink3 = cssv('--ink-3'), line = cssv('--line');
   return { textStyle:{fontFamily:'Nunito, system-ui, sans-serif', color:ink2}, animationDuration:500,
@@ -1268,27 +1249,27 @@ function entryRow(e, o={}){
     ${o.date ? `<td class="num muted">${dateLabel(e.date)}</td>` : ''}
     <td class="num muted">${e.start ? timeKey(e.start) : '–'}</td>
     <td class="wrap"><b>${esc(typeName(e.typeId))}</b>${e.units ? ` <span class="muted">× ${e.units}</span>` : ''}<br><span class="muted">${esc(cls?.name || 'Unassigned')}${e.note ? ' · ' + esc(e.note.slice(0,80)) : ''}</span></td>
-    <td class="r num">${hm(e.minutes)}</td><td>${statusChip(e.status)}</td></tr>`;
+    <td class="r num">${hm(e.minutes)}</td><td>${statusChip(e)}</td></tr>`;
 }
 
 /* ================================================================ TIMESHEET */
 VIEWS.entries = () => {
   const f = UI.tf ||= {month:today().slice(0,7), person:S.personId, status:'all', client:'all', q:''};
   const months = [...new Set([today().slice(0,7), ...Object.keys(S.entryDocs)])].sort().reverse();
-  let list = allEntries().filter(e => monthOf(e.date) === f.month && (f.person==='all' || e.personId===f.person) && (f.status==='all' || e.status===f.status || (f.status==='review' && e.needsReview)) && (f.client==='all' || e.clientId===f.client));
+  let list = allEntries().filter(e => monthOf(e.date) === f.month && (f.person==='all' || e.personId===f.person) && (f.status==='all' || (f.status==='done' ? e.completed !== false : e.completed === false)) && (f.client==='all' || e.clientId===f.client));
   if (f.q) { const q = f.q.toLowerCase(); list = list.filter(e => (typeName(e.typeId)+' '+clientName(e.clientId)+' '+(e.note||'')).toLowerCase().includes(q)); }
   list.sort((a,b) => (b.date.localeCompare(a.date)) || (b.start - a.start));
   const myDrafts = list.filter(e => e.personId === S.personId && e.status === 'draft' && e.clientId && e.typeId);
   const toApprove = list.filter(e => e.personId !== S.personId && e.status === 'submitted');
   const locked = isLocked(f.month);
   const byDay = groupBy(list, e => e.date);
-  return `<div class="head"><div><h1>Time Log</h1><p>Every session, who did it, for which client and task. Drafts stay private until you submit them; ${S.settings.approvalMode==='self' ? 'submitting approves them.' : 'your partner approves submitted time before it counts toward payouts.'}</p></div>
+  return `<div class="head"><div><h1>Time Log</h1><p>Every session: who did it, internal or external, for whom, and what kind of work it was.</p></div>
     <div class="row">${myDrafts.length ? `<button class="btn pri" data-act="submit-all" ${locked?'disabled':''}>Submit my ${myDrafts.length} drafts</button>` : ''}${toApprove.length && isPartner() ? `<button class="btn pri" data-act="approve-all" ${locked?'disabled':''}>Approve ${toApprove.length} from ${esc(person(toApprove[0].personId).name)}</button>` : ''}<button class="btn" data-act="log">Log time</button></div></div>
   ${locked ? `<div class="note">${monthLabel(f.month)} is locked for payouts. Entries are read-only.</div>` : ''}
   <div class="filters">
     <select class="in" id="tf-month" style="width:auto">${months.map(m => `<option value="${m}" ${m===f.month?'selected':''}>${monthLabel(m)}</option>`).join('')}</select>
     <select class="in" id="tf-person" style="width:auto"><option value="all">Everyone</option>${personOptions(f.person, true)}</select>
-    <select class="in" id="tf-status" style="width:auto">${[['all','Any status'],['draft','Draft'],['submitted','Submitted'],['approved','Approved'],['rejected','Rejected'],['review','Needs review']].map(([v,l]) => `<option value="${v}" ${v===f.status?'selected':''}>${l}</option>`).join('')}</select>
+    <select class="in" id="tf-status" style="width:auto">${[['all','Any status'],['open','In progress'],['done','Finished']].map(([v,l]) => `<option value="${v}" ${v===f.status?'selected':''}>${l}</option>`).join('')}</select>
     <select class="in" id="tf-client" style="width:auto"><option value="all">All clients</option>${clientOptions(f.client, false)}</select>
     <input class="in" id="tf-q" placeholder="Search notes" value="${esc(f.q)}" style="width:180px">
     <span class="muted">${list.length} entries · ${hrs(sum(list, e=>e.minutes))} h</span>
@@ -1299,7 +1280,7 @@ VIEWS.entries = () => {
     <td class="num muted">${e.start?timeKey(e.start):'–'}–${e.end?timeKey(e.end):'–'}</td>
     <td class="wrap"><b>${esc(typeName(e.typeId))}</b> <span class="code">${esc(e.typeId||'')}</span>${(e.allocations||[]).length?` <span class="chip">+${e.allocations.length} split</span>`:''}<br><span class="muted">${esc((e.note||'').slice(0,110))}</span>${e.needsReview?`<br><span class="chip warn">Check mapping</span>`:''}</td>
     <td>${esc(clientName(e.clientId))}</td><td class="r num">${hrs(e.minutes)}</td><td class="r num">${e.units ?? ''}</td>
-    <td>${statusChip(e.status)}${e.source==='import'?' <span class="chip">imported</span>':''}</td>
+    <td>${statusChip(e)}</td>
     <td style="white-space:nowrap">${entryActions(e, locked)}</td></tr>`).join('')).join('')}
   </tbody></table></div>` : `<div class="panel empty">No entries match. Start a timer or log time to add one.</div>`}`;
 };
@@ -1469,7 +1450,6 @@ VIEWS.me = () => {
   const days = new Set(E.map(e => e.date)).size;
   const bill = sum(rows.filter(r=>r.billable), r=>r.minutes), tot = sum(rows, r=>r.minutes);
   const units = sum(rows, r => r.units||0);
-  const unapproved = allEntries().filter(e => e.personId === who && e.status !== 'approved').length;
   const band = (k, v, s='') => `<div><div class="k">${k}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
   // revenue associated with this person's work: client paid revenue in range × person's share of that client's hours
   const allR = laborRows().filter(r => inRange(r.date, from, to));
@@ -1495,7 +1475,7 @@ VIEWS.me = () => {
     ${band('Task switches per day', days ? (E.length/days).toFixed(1) : '–', `across ${days} working days`)}
     ${band('Deliverables logged', units || '–')}
     ${band('Revenue tied to your work', money(assoc), 'client revenue × your share of its hours')}
-    ${band('Not yet approved', unapproved, unapproved ? '<a href="#entries" data-go="entries">open timesheet</a>' : '')}${band('Hours in range', hrs(tot)+' h', `${E.length} entries`)}
+    ${band('Open tasks', allEntries().filter(e => e.personId === who && e.completed === false).length, '<a href="#board" data-go="board">open tasks</a>')}${band('Hours in range', hrs(tot)+' h', `${E.length} entries`)}
   </div>
   <div class="grid g2" style="margin-top:14px">
     <div class="panel"><h3>Client mix</h3><div class="chart short" data-chart="meClients"></div></div>
@@ -1687,7 +1667,7 @@ VIEWS.clients = () => {
   return `<div class="head"><div><h1>Clients</h1><p>Client P&L. Labor cost uses the period's effective payout per hour (${money2(rate)}/h in this range), so contribution is what's left after paying the people who did the work and any direct costs.</p></div>
     <button class="btn" data-act="client-new">Add client</button></div>
   ${filterBar({person:false, client:false, family:false})}${noChartLib()}
-  <div class="panel"><h3>Portfolio <span class="muted">labor hours vs paid revenue · bubble size is contribution dollars · color is contribution margin</span></h3><div class="chart tall" data-chart="quadrant"></div>
+
     <div class="legend"><span><i style="background:var(--div-neg)"></i>negative margin</span><span><i style="background:var(--div-mid)"></i>break-even</span><span><i style="background:var(--div-pos)"></i>healthy margin</span><span class="muted">Top left: efficient. Top right: high revenue, labor-heavy. Bottom right: underpriced.</span></div></div>
   <div class="tw" style="margin-top:14px"><table><thead><tr><th>Client</th><th class="r">Paid</th><th class="r">Recognized</th><th class="r">A/R</th><th class="r">Contracted future</th><th class="r">Hours</th><th class="r">Rev / hr</th><th class="r">Labor cost</th><th class="r">Direct exp.</th><th class="r">Contribution</th><th class="r">Margin</th><th class="r">Units</th><th>Retainer use (this month)</th><th></th></tr></thead><tbody>
   ${rows.map(r => `<tr><td><b>${esc(r.name)}</b></td><td class="r num">${money(r.paid)}</td><td class="r num">${money(r.recog)}</td><td class="r num">${r.ar?money(r.ar):'–'}</td><td class="r num">${r.fut?money(r.fut):'–'}</td>
@@ -1856,7 +1836,8 @@ VIEWS.contracts = () => {
   /* Spec section 37: planned hours, renewal date and end date are gone. Section 38:
    * ad commission shows a percentage, never a dollar amount. */
   return `<div class="head"><div><h1>Clients</h1><p>Active agreements only. Billing frequency is recorded exactly as agreed; the monthly column is derived for analytics and never changes what a client is billed.</p></div><button class="btn pri" data-act="fin-new" data-k="contracts">Add client agreement</button></div>
-  <div class="band">
+  <div class="panel"><h3>Portfolio <span class="muted">labor hours vs paid revenue · bubble size is contribution dollars · color is contribution margin</span></h3><div class="chart tall" data-chart="quadrant"></div>
+  <div class="band" style="margin-top:14px">
     <div><div class="k">Monthly recurring</div><div class="v">${money(mrr())}</div><div class="s">fixed-cycle agreements, normalized</div></div>
     <div><div class="k">Active clients</div><div class="v">${new Set(C.map(c => c.clientId)).size}</div></div>
     <div><div class="k">Commission based</div><div class="v">${C.filter(c => c.contractType === 'ad commission').length}</div><div class="s">no fixed monthly value</div></div>
@@ -1883,6 +1864,8 @@ VIEWS.contracts = () => {
   </tbody></table></div>
   <p class="muted" style="margin-top:10px">Pricing changes are edits, not new agreements. Use Add charge for one-off or hourly work on an existing client, spec sections 40 to 42.</p>`;
 };
+
+VIEWS.contracts.after = () => mountCharts();
 
 /* One-off and hourly charges on an existing client, spec sections 41 and 42.
  * Writes a revenue line rather than forcing a duplicate client or contract. */
@@ -2122,12 +2105,20 @@ async function onClick(ev){
     case 'scope-pick': {
       const sc = a.dataset.scope;
       UI.startScope = sc;
+      const sw = $('#st-scope'); if (sw) sw.dataset.scope = sc;
       document.querySelectorAll('#st-scope .seg-b').forEach(b => b.classList.toggle('on', b.dataset.scope === sc));
       $('#st-fields').innerHTML = startFields(sc, {});
       $('#st-err').textContent = '';
       ($('#st-client') || $('#st-cat'))?.focus();
       break;
     }
+    case 'tax-scope': UI.taxScope = a.dataset.scope; render(); break;
+    case 'tax-new-cat': openCatModal(null, a.dataset.scope); break;
+    case 'tax-edit-cat': openCatModal(a.dataset.id); break;
+    case 'tax-save-cat': await saveCat(a.dataset.id); break;
+    case 'tax-new-type': openTypeModal(null, a.dataset.cat); break;
+    case 'tax-edit-type': openTypeModal(a.dataset.code); break;
+    case 'tax-save-type': await saveType(a.dataset.code); break;
     case 'bill-add': openBillModal(a.dataset.id); break;
     case 'bill-save': await saveBill(a.dataset.id); break;
     case 'admin-tab': UI.adminTab = a.dataset.tab; render(); break;
@@ -2199,11 +2190,20 @@ async function saveRules(){
 }
 function onChange(ev){
   if (ev.target.id === 'ed-joint'){ const w = $('#ed-joint-wrap'); if (w) w.hidden = !ev.target.checked; }
-  if (ev.target.id === 'st-cat' || ev.target.id === 'ed-cat'){
-    const tid = ev.target.id === 'st-cat' ? 'st-type' : 'ed-type';
-    const hidden = $('#'+tid), q = $('#'+tid+'-q');
-    if (hidden && q){ hidden.value = ''; q.value = ''; }
-    const wrap = $('#st-other-wrap'); if (wrap && tid === 'st-type') wrap.hidden = true;
+  if (ev.target.id === 'st-cat'){
+    const sel = $('#st-type');
+    sel.innerHTML = taskOptions(UI.startScope || 'external', ev.target.value, '');
+    sel.disabled = !ev.target.value;
+    const w = $('#st-other-wrap'); if (w){ w.hidden = true; const o = $('#st-other'); if (o) o.value = ''; }
+  }
+  if (ev.target.id === 'st-type'){
+    const other = ev.target.value.startsWith('OTHER-');
+    const w = $('#st-other-wrap');
+    if (w){ w.hidden = !other; if (other) setTimeout(() => $('#st-other')?.focus(), 30); else { const o = $('#st-other'); if (o) o.value = ''; } }
+  }
+  if (ev.target.id === 'ed-cat'){
+    const sel = $('#ed-type');
+    if (sel) sel.innerHTML = taskOptions(UI.edit?.e?.scope || 'external', ev.target.value, '');
   }
 
   const el = ev.target, id = el.id;
@@ -2331,7 +2331,7 @@ async function importFile(file){
 VIEWS.admin = () => {
   if (!isAdmin()) return `<div class="head"><div><h1>System Admin</h1><p>You do not have access to this area.</p></div></div>`;
   const tab = UI.adminTab || 'clients';
-  const tabs = [['clients','Clients and leads'],['tasks','Task types'],['audit','Audit log']];
+  const tabs = [['clients','Clients and leads'],['taxonomy','Task taxonomy'],['audit','Change log']];
   return `<div class="head"><div><h1>System Admin</h1><p>Clients, leads, task types and the change record. Admins only.</p></div></div>
   <div class="row" style="margin-bottom:14px">${tabs.map(([v,l]) =>
     `<button class="btn ${tab===v?'pri':''}" data-act="admin-tab" data-tab="${v}">${l}</button>`).join('')}</div>
@@ -2339,28 +2339,112 @@ VIEWS.admin = () => {
 };
 VIEWS.admin.after = () => { const t = UI.adminTab || 'clients'; VIEWS[t]?.after?.(); };
 
-/* Company Projections, spec section 31. Forward-looking only: what is already
- * contracted, what it costs to run, and what that leaves. Nothing invented. */
+/* Company Projections. Forward view against the annual goal, with a date range
+ * so the revenue and growth picture can be read over any window. Costs include
+ * contractors, which were previously missing. Nothing is invented: months with no
+ * basis show as unavailable rather than as zero. */
 VIEWS.projections = () => {
-  if (!isAdmin()) return `<div class="head"><div><h1>Company Projections</h1><p>You do not have access to this area.</p></div></div>`;
+  if (!isAdmin()) return `<div class="head"><div><h1>Company Projections</h1><p>Admins only.</p></div></div>`;
+  const st = S.settings;
+  const goal = +st.annualGoal || 0;
+  const year = String(st.goalYear || today().slice(0,4));
   const rr = runRate();
-  const months = [];
-  let m = monthOf(today());
-  for (let i = 0; i < 6; i++){ months.push(m); m = addMonths(m, 1); }
+
+  /* Collected so far this year, straight from the ledger. */
+  const ytd = r2(sum(ledgerItems().filter(l => l.poolEligible !== false), l => paidIn(l, year+'-01-01', today())));
+  const pct = goal ? ytd / goal : 0;
+  const dayOfYear = Math.round((new Date(today()) - new Date(year+'-01-01')) / 86400000) + 1;
+  const yearDays = ((+year % 4 === 0 && +year % 100 !== 0) || +year % 400 === 0) ? 366 : 365;
+  const expectedPct = dayOfYear / yearDays;
+  const paceGap = r2(ytd - goal * expectedPct);
+  const runRateYear = dayOfYear ? r2(ytd / dayOfYear * yearDays) : 0;
+
+  /* Twelve months forward: contracted revenue against all recurring costs. */
+  const months = []; let m0 = monthOf(today());
+  for (let i = 0; i < 12; i++){ months.push(m0); m0 = addMonths(m0, 1); }
   const rows = months.map(mm => {
     const exp = expensesIn(mm+'-01', monthEnd(mm));
-    const expTotal = r2(sum(exp, x => x.amount));
+    const costs = r2(sum(exp, x => x.amount));
     const rev = r2(rr.recurringMonthly || 0);
-    return {m: mm, rev, expTotal, net: r2(rev - expTotal)};
+    return {m:mm, rev, costs, net:r2(rev - costs)};
   });
-  const anyExp = rows.some(r => r.expTotal > 0);
-  return `<div class="head"><div><h1>Company Projections</h1><p>Six months ahead, from active contracts with a fixed billing cycle. Commission and per-deliverable work is excluded rather than estimated.</p></div></div>
-  <div class="panel"><div class="tw"><table>
-    <thead><tr><th>Month</th><th class="r">Expected revenue</th><th class="r">Expected costs</th><th class="r">Net</th></tr></thead>
-    <tbody>${rows.map(r => `<tr><td>${monthLabel(r.m)}</td><td class="r num">${money2(r.rev)}</td>
-      <td class="r num">${anyExp ? money2(r.expTotal) : '<span class="muted">Insufficient data</span>'}</td>
-      <td class="r num">${anyExp ? money2(r.net) : '<span class="muted">–</span>'}</td></tr>`).join('')}</tbody>
-  </table></div></div>`;
+  const anyCost = rows.some(r => r.costs > 0);
+  const avgCost = anyCost ? r2(sum(rows, r => r.costs) / rows.length) : null;
+
+  const band = (k, v, s) => `<div><div class="k">${k}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
+
+  return `<div class="head"><div><h1>Company Projections</h1>
+    <p>Progress against the ${esc(year)} goal, and what the next twelve months look like on contracts already signed.</p></div></div>
+
+  <div class="band">
+    ${band(`${year} goal`, money(goal))}
+    ${band('Collected so far', money(ytd), `${Math.round(pct*100)}% of goal`)}
+    ${band('Pace', paceGap >= 0 ? 'Ahead' : 'Behind', `${money(Math.abs(paceGap))} ${paceGap>=0?'ahead of':'behind'} an even pace`)}
+    ${band('On this run rate', money(runRateYear), `projected full year`)}
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>Goal progress</h3>
+    <div class="goalbar"><div class="goalbar-fill" style="width:${Math.min(100, pct*100).toFixed(1)}%"></div>
+      <div class="goalbar-pace" style="left:${Math.min(100, expectedPct*100).toFixed(1)}%" title="Even pace for today"></div></div>
+    <div class="spread" style="margin-top:8px"><span class="muted">${money(ytd)} collected</span>
+      <span class="muted">marker shows an even pace for day ${dayOfYear} of ${yearDays}</span>
+      <span class="muted">${money(goal)}</span></div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="panel"><h3>Revenue by month <span class="muted">collected</span></h3>
+      <div class="chart" data-chart="projRevenue" style="height:280px"></div></div>
+    <div class="panel"><h3>Cumulative against goal</h3>
+      <div class="chart" data-chart="projCumulative" style="height:280px"></div></div>
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>Next twelve months</h3>
+    <p class="muted" style="margin-top:0">Revenue counts active contracts with a fixed billing cycle. Commission and per-deliverable work is excluded rather than estimated. Costs include contractors and every recurring subscription.</p>
+    <div class="tw"><table><thead><tr><th>Month</th><th class="r">Expected revenue</th><th class="r">Expected costs</th><th class="r">Net</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${monthLabel(r.m)}</td><td class="r num">${money2(r.rev)}</td>
+        <td class="r num">${anyCost ? money2(r.costs) : '<span class="muted">Insufficient data</span>'}</td>
+        <td class="r num" style="${anyCost ? (r.net>=0?'color:var(--good)':'color:var(--crit)') : ''}">${anyCost ? money2(r.net) : '–'}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${avgCost != null ? `<p class="muted" style="margin-bottom:0">Average monthly cost ${money2(avgCost)}, including contractors.</p>` : ''}
+  </div>`;
+};
+VIEWS.projections.after = () => mountCharts();
+
+/* Collected revenue by month across the whole ledger, so growth is readable over
+ * any window rather than a fixed six months. */
+CHARTS.projRevenue = () => {
+  const L = ledgerItems().filter(l => l.poolEligible !== false);
+  const by = {};
+  for (const l of L){
+    if (!l.paidDate) continue;
+    const k = l.paidDate.slice(0,7);
+    by[k] = (by[k] || 0) + paidIn(l, k+'-01', monthEnd(k));
+  }
+  const keys = Object.keys(by).sort();
+  const b = baseChart();
+  return {...b, xAxis:{type:'category', data:keys.map(monthLabel), ...b._ax},
+    yAxis:{type:'value', ...b._ax},
+    series:[{type:'bar', data:keys.map(k => r2(by[k])), itemStyle:{color:cssv('--signal'), borderRadius:[4,4,0,0]}}]};
+};
+CHARTS.projCumulative = () => {
+  const st = S.settings; const year = String(st.goalYear || today().slice(0,4));
+  const goal = +st.annualGoal || 0;
+  const L = ledgerItems().filter(l => l.poolEligible !== false);
+  const months = []; for (let i=1;i<=12;i++) months.push(`${year}-${String(i).padStart(2,'0')}`);
+  let run = 0; const cum = []; const pace = [];
+  months.forEach((k, i) => {
+    run += sum(L, l => paidIn(l, k+'-01', monthEnd(k)));
+    cum.push(k <= monthOf(today()) ? r2(run) : null);
+    pace.push(r2(goal * (i+1) / 12));
+  });
+  const b = baseChart();
+  return {...b, xAxis:{type:'category', data:months.map(monthLabel), ...b._ax}, yAxis:{type:'value', ...b._ax},
+    legend:{data:['Collected','Even pace'], bottom:0, textStyle:{color:cssv('--ink-2')}},
+    series:[
+      {name:'Collected', type:'line', smooth:true, data:cum, lineStyle:{width:3, color:cssv('--signal')},
+       itemStyle:{color:cssv('--signal')}, areaStyle:{color:cssv('--signal-soft')}, connectNulls:false},
+      {name:'Even pace', type:'line', data:pace, lineStyle:{type:'dashed', width:1.5, color:cssv('--ink-3')}, itemStyle:{color:cssv('--ink-3')}, symbol:'none'},
+    ]};
 };
 
 /* Tasks, spec sections 27 and 28. Work that is open, and work anyone can pick up.
@@ -2385,6 +2469,136 @@ VIEWS.board = () => {
     <div class="panel"><h3>Open across the team <span class="muted">${rest.length}</span></h3>${table(rest, 'Nothing open elsewhere.')}</div>
   </div>`;
 };
+
+/* ================================================================ Taxonomy admin */
+/* Create and edit the work taxonomy: categories, the task types under each, and
+ * the expected duration used for estimate-against-actual. Scope is set here and
+ * enforced everywhere else, so internal logging can never see external work. */
+
+VIEWS.taxonomy = () => {
+  if (!isAdmin()) return `<div class="head"><div><h1>Task taxonomy</h1><p>Admins only.</p></div></div>`;
+  const scope = UI.taxScope || 'external';
+  const cats = CATS().filter(c => c.scope === scope);
+  const types = Object.values(S.taxonomy.types || {});
+  const noEst = types.filter(t => t.active !== false && !t.estimateHours).length;
+
+  return `<div class="head"><div><h1>Task taxonomy</h1>
+    <p>Every category and task belongs to internal or external work. Expected time drives the estimate-against-actual comparison; set it from a real time trial rather than a guess.</p></div>
+    <button class="btn pri" data-act="tax-new-cat" data-scope="${scope}">New category</button></div>
+
+  <div class="row" style="margin-bottom:14px;align-items:center;gap:12px">
+    <div class="scope-switch" data-scope="${scope}"><span class="thumb"></span>
+      <button type="button" class="seg-b ${scope==='external'?'on':''}" data-act="tax-scope" data-scope="external">External</button>
+      <button type="button" class="seg-b ${scope==='internal'?'on':''}" data-act="tax-scope" data-scope="internal">Internal</button>
+    </div>
+    <span class="muted">${cats.length} categories · ${types.filter(t => t.scope===scope).length} tasks${noEst?` · ${noEst} without an expected time`:''}</span>
+  </div>
+
+  <div class="stack">
+  ${cats.map(c => {
+    const list = typesFor(scope, c.id).filter(t => !t.code.startsWith('OTHER-'));
+    return `<div class="panel">
+      <div class="spread" style="align-items:flex-start">
+        <div><h3 style="margin:0">${esc(c.name)}</h3>
+          <span class="muted" style="font-size:12px">${c.revenueLinked ? 'Revenue linked' : 'Not revenue linked'} · ${list.length} task${list.length===1?'':'s'}</span></div>
+        <span class="row">
+          <button class="btn sm" data-act="tax-new-type" data-cat="${esc(c.id)}">Add task</button>
+          <button class="btn sm ghost" data-act="tax-edit-cat" data-id="${esc(c.id)}">Edit</button>
+        </span>
+      </div>
+      ${list.length ? `<table style="margin-top:10px"><thead><tr>
+        <th>Task</th><th>Deliverable</th><th class="r">Expected time</th><th>Source</th><th></th>
+      </tr></thead><tbody>
+        ${list.map(t => `<tr>
+          <td><b>${esc(t.name)}</b> <span class="code">${esc(t.code)}</span></td>
+          <td>${t.unit ? esc(t.unit) : '<span class="muted">time only</span>'}</td>
+          <td class="r num">${t.estimateHours ? t.estimateHours.toFixed(2)+' h' : '<span class="chip warn">not set</span>'}</td>
+          <td class="muted">${esc(t.estimateSource || '–')}</td>
+          <td><button class="btn sm ghost" data-act="tax-edit-type" data-code="${esc(t.code)}">Edit</button></td>
+        </tr>`).join('')}
+      </tbody></table>` : `<p class="muted" style="margin:10px 0 0">No tasks yet.</p>`}
+    </div>`;
+  }).join('')}
+  </div>`;
+};
+
+function openCatModal(id, scope){
+  const c = id ? {...S.taxonomy.categories[id]} : {id:'', name:'', scope:scope||'external', revenueLinked:false, active:true, order:999};
+  openModal(`<header><h2>${id?'Edit category':'New category'}</h2><button class="btn ghost" data-act="close">Close</button></header>
+  <div class="body">
+    <label class="field"><span>Name</span><input class="in" id="tc-name" value="${esc(c.name)}" autofocus></label>
+    <div class="fg">
+      <label class="field"><span>Scope</span><select class="in" id="tc-scope">
+        ${['external','internal'].map(s => `<option value="${s}" ${s===c.scope?'selected':''}>${s==='external'?'External':'Internal'}</option>`).join('')}
+      </select></label>
+      <label class="field"><span>Active</span><select class="in" id="tc-active">
+        <option value="yes" ${c.active!==false?'selected':''}>Yes</option><option value="no" ${c.active===false?'selected':''}>No</option>
+      </select></label>
+    </div>
+    <label class="check"><input type="checkbox" id="tc-rev" ${c.revenueLinked?'checked':''}> Revenue linked<br>
+      <span class="muted" style="font-weight:400">External delivery work usually is. Internal work usually is not.</span></label>
+    <div class="err" id="tc-err"></div>
+  </div>
+  <footer><span></span><button class="btn pri" data-act="tax-save-cat" data-id="${esc(id||'')}">Save</button></footer>`);
+}
+
+async function saveCat(id){
+  const name = $('#tc-name').value.trim();
+  if (!name){ $('#tc-err').textContent = 'Give it a name.'; return; }
+  const cid = id || name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
+  const cats = {...(S.taxonomy.categories||{})};
+  cats[cid] = {...(cats[cid]||{}), id:cid, name, scope:$('#tc-scope').value,
+    revenueLinked:$('#tc-rev').checked, active:$('#tc-active').value === 'yes',
+    order: cats[cid]?.order ?? Object.keys(cats).length};
+  await saveConfig('taxonomy', {categories:{[cid]:cats[cid]}});
+  closeModal(); toast(id?'Category updated':'Category added');
+}
+
+function openTypeModal(code, categoryId){
+  const t = code ? {...S.taxonomy.types[code]} : {code:'', name:'', categoryId, unit:null, estimateHours:null, estimateSource:'estimate', active:true, order:0};
+  const cat = S.taxonomy.categories[t.categoryId || categoryId];
+  openModal(`<header><h2>${code?'Edit task':'New task'}</h2><button class="btn ghost" data-act="close">Close</button></header>
+  <div class="body">
+    <p class="muted" style="margin-top:0">In <b>${esc(cat?.name || '–')}</b> · ${esc(cat?.scope || '')}</p>
+    <label class="field"><span>Task name</span><input class="in" id="tt-name" value="${esc(t.name)}" autofocus></label>
+    <div class="fg">
+      <label class="field"><span>Deliverable <span class="muted">(optional)</span></span>
+        <input class="in" id="tt-unit" value="${esc(t.unit||'')}" placeholder="email, post, reel…" list="units">
+        <datalist id="units">${['email','post','graphic','reel','newsletter','carousel','video','report','proposal','page','ad','deck'].map(u=>`<option value="${u}">`).join('')}</datalist>
+        <small>Leave empty for work that is not countable, like calls or meetings.</small></label>
+      <label class="field"><span>Expected time (hours)</span>
+        <input class="in num" type="number" step="0.05" min="0" id="tt-est" value="${t.estimateHours ?? ''}" placeholder="from a time trial">
+        <small>Drives variance. Leave empty rather than guessing.</small></label>
+    </div>
+    <div class="fg">
+      <label class="field"><span>Category</span><select class="in" id="tt-cat">
+        ${CATS().filter(c => c.scope === (cat?.scope || 'external')).map(c => `<option value="${esc(c.id)}" ${c.id===t.categoryId?'selected':''}>${esc(c.name)}</option>`).join('')}
+      </select></label>
+      <label class="field"><span>Active</span><select class="in" id="tt-active">
+        <option value="yes" ${t.active!==false?'selected':''}>Yes</option><option value="no" ${t.active===false?'selected':''}>No</option>
+      </select></label>
+    </div>
+    <div class="err" id="tt-err"></div>
+  </div>
+  <footer><span></span><button class="btn pri" data-act="tax-save-type" data-code="${esc(code||'')}">Save</button></footer>`);
+}
+
+async function saveType(code){
+  const name = $('#tt-name').value.trim();
+  if (!name){ $('#tt-err').textContent = 'Give it a name.'; return; }
+  const cid = $('#tt-cat').value;
+  const scope = S.taxonomy.categories[cid]?.scope || 'external';
+  const c = code || (name.toUpperCase().replace(/[^A-Z]/g,'').slice(0,3) || 'TSK') + '-' + Math.random().toString(36).slice(2,6).toUpperCase();
+  const est = $('#tt-est').value === '' ? null : +$('#tt-est').value;
+  const prev = S.taxonomy.types[code] || {};
+  const row = {...prev, code:c, name, categoryId:cid, scope,
+    unit: $('#tt-unit').value.trim() || null,
+    estimateHours: est,
+    estimateSource: est == null ? null : (prev.estimateHours === est ? prev.estimateSource : 'measured'),
+    active: $('#tt-active').value === 'yes', order: prev.order ?? 0};
+  await saveConfig('taxonomy', {types:{[c]:row}});
+  closeModal(); toast(code?'Task updated':'Task added');
+}
 
 boot();
 </script>

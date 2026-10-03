@@ -55,6 +55,13 @@ ANNUAL = [
 # the transactions show a trial. It is flagged for review rather than guessed.
 ANNUAL_REVIEW = [('Xero', 'Software', 240.00, None)]
 
+# Recurring contractor commitments, stated by Carter. These are ongoing monthly
+# costs and belong in forward projections, not just in past transactions.
+CONTRACTORS_MONTHLY = [
+    ('Melanie Lee', 400.00),
+    ('Sofia Burke', 600.00),
+]
+
 
 def parse_date(s):
     s = (s or '').strip()
@@ -135,6 +142,15 @@ def build(src):
             source='register', deleted=False, needsReview=review,
             reviewNotes=['Confirm renewal date'] if review else [],
         )
+
+    for name, amount in CONTRACTORS_MONTHLY:
+        xid = 'exp' + sid('contractor', name)
+        expenses[xid] = dict(
+            id=xid, vendor=name, category='Contractors', amount=amount,
+            date='2026-10-01', recurring=True, frequency='monthly', endDate=None,
+            allocation='overhead', clientId=None, owner=None, renewalDate=None,
+            cancelNoticeDate=None, notes='Recurring contractor cost.',
+            source='stated', deleted=False, needsReview=False, reviewNotes=[])
 
     os.makedirs(OUT, exist_ok=True)
     with open(os.path.join(OUT, 'expenses.json'), 'w') as f:

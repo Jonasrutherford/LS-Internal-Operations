@@ -263,5 +263,12 @@ hr.sep{border:0; border-top:1px solid var(--line); margin:4px 0}
 .state-pill.is-running{background:var(--good-soft);color:var(--good)}
 .state-pill.is-paused{background:var(--signal);color:var(--signal-ink)}
 .timer.paused .clock{opacity:.6}
+
+/* Goal progress bar, Lucid gradient. */
+.goalbar{position:relative;height:14px;border-radius:999px;background:var(--panel-2);overflow:visible;border:1px solid var(--line)}
+.goalbar-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--heat-1),var(--heat-2),var(--heat-3))}
+.goalbar-pace{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink-2);border-radius:2px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:900px){ .grid2{grid-template-columns:1fr} }
 </style>
 <div id="root"></div>

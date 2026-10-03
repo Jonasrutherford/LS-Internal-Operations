@@ -66,23 +66,38 @@ const bad = filterClients.filter(t => /internal|Casa Barranca|HMD|Hospital Proce
 console.log(bad.length ? 'FAIL leaked into client filter: ' + bad.join(', ') : 'OK: no internal or retired clients in the filter');
 console.log('scope filter present:', await page.locator('#f-scope').count() > 0);
 
-// Category must narrow the task list.
+// Category must drive the task list, and scope must be strictly enforced.
 await page.evaluate(() => { try { closeModal(); } catch {} });
 await page.waitForTimeout(300);
 await page.evaluate(() => location.hash = '#track');
 await page.waitForTimeout(400);
 await page.locator('[data-act="start"]').first().click();
 await page.waitForTimeout(500);
-const allTypes = await page.evaluate(() => { comboList('st-type',''); return document.querySelectorAll('[data-combo="st-type"] .opt').length; });
-await page.selectOption('#st-cat', 'Client reporting');
-await page.waitForTimeout(250);
-const narrowed = await page.evaluate(() => { comboList('st-type',''); return document.querySelectorAll('[data-combo="st-type"] .opt').length; });
-console.log(`task types: ${allTypes} unfiltered -> ${narrowed} under "Client reporting"`,
-  narrowed > 0 && narrowed < allTypes ? 'OK' : 'FAIL');
 
-// Full start flow.
-await page.evaluate(() => { const o=[...document.querySelectorAll('[data-combo="st-type"] .opt')][0]; pickType('st-type', o.dataset.code); });
+const extCats = await page.locator('#st-cat option').allTextContents();
+await page.locator('[data-act="scope-pick"][data-scope="internal"]').click();
+await page.waitForTimeout(350);
+const intCats = await page.locator('#st-cat option').allTextContents();
+const overlap = extCats.filter(c => c !== 'Choose…' && intCats.includes(c));
+console.log(`categories: ${extCats.length-1} external, ${intCats.length-1} internal`);
+console.log(overlap.length ? 'FAIL categories appear in both scopes: ' + overlap.join(', ')
+                           : 'OK: no category appears under both scopes');
+
+// Internal category must only offer internal tasks.
+await page.selectOption('#st-cat', { index: 1 });
+await page.waitForTimeout(300);
+const intTasks = await page.locator('#st-type option').allTextContents();
+console.log(`internal tasks offered: ${intTasks.length-2}`, intTasks.length > 2 ? 'OK' : 'FAIL (empty)');
+
+// Back to external and run the whole logging path.
+await page.locator('[data-act="scope-pick"][data-scope="external"]').click();
+await page.waitForTimeout(350);
 await page.selectOption('#st-client', { index: 1 });
+await page.selectOption('#st-cat', { index: 1 });
+await page.waitForTimeout(300);
+const extTasks = await page.locator('#st-type option').allTextContents();
+console.log(`external tasks offered: ${extTasks.length-2}`, extTasks.length > 2 ? 'OK' : 'FAIL (empty)');
+await page.selectOption('#st-type', { index: 1 });
 await page.locator('[data-act="start-go"]').click();
 await page.waitForTimeout(700);
 const running = await page.locator('.timer.on').count();
@@ -92,15 +107,27 @@ if (running) {
   console.log('paused state shown:', await page.locator('.state-pill.is-paused').count() > 0 ? 'OK' : 'FAIL');
   await page.locator('[data-act="resume"]').click(); await page.waitForTimeout(300);
   await page.locator('[data-act="stop"]').click(); await page.waitForTimeout(600);
-  const stopFields = await page.evaluate(() => ({
+  const f = await page.evaluate(() => ({
     person: !!document.querySelector('#ed-person')?.offsetParent,
     deliverable: !!document.querySelector('#ed-deliv'),
     done: !!document.querySelector('#ed-done'),
     joint: !!document.querySelector('#ed-joint'),
   }));
-  console.log('stop sheet:', JSON.stringify(stopFields),
-    (!stopFields.person && stopFields.deliverable && stopFields.done && stopFields.joint) ? 'OK' : 'FAIL');
+  console.log('stop sheet:', JSON.stringify(f),
+    (!f.person && f.deliverable && f.done && f.joint) ? 'OK' : 'FAIL');
+  await page.evaluate(() => { try { closeModal(); } catch {} });
 }
+
+// Taxonomy admin must render and be editable.
+await page.evaluate(() => { UI.adminTab = 'taxonomy'; location.hash = '#admin'; });
+await page.waitForTimeout(600);
+console.log('taxonomy page categories:', await page.locator('[data-act="tax-edit-cat"]').count());
+console.log('taxonomy edit buttons:', await page.locator('[data-act="tax-edit-type"]').count() > 0 ? 'OK' : 'FAIL');
+
+// Quadrant chart must now live on Clients.
+await page.evaluate(() => location.hash = '#contracts');
+await page.waitForTimeout(500);
+console.log('portfolio chart on Clients:', await page.locator('[data-chart="quadrant"]').count() > 0 ? 'OK' : 'FAIL');
 
 console.log('\nERRORS (' + errors.length + '):');
 console.log(errors.slice(0, 12).join('\n') || '  none');

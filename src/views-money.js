@@ -33,7 +33,7 @@ VIEWS.clients = () => {
   return `<div class="head"><div><h1>Clients</h1><p>Client P&L. Labor cost uses the period's effective payout per hour (${money2(rate)}/h in this range), so contribution is what's left after paying the people who did the work and any direct costs.</p></div>
     <button class="btn" data-act="client-new">Add client</button></div>
   ${filterBar({person:false, client:false, family:false})}${noChartLib()}
-  <div class="panel"><h3>Portfolio <span class="muted">labor hours vs paid revenue · bubble size is contribution dollars · color is contribution margin</span></h3><div class="chart tall" data-chart="quadrant"></div>
+
     <div class="legend"><span><i style="background:var(--div-neg)"></i>negative margin</span><span><i style="background:var(--div-mid)"></i>break-even</span><span><i style="background:var(--div-pos)"></i>healthy margin</span><span class="muted">Top left: efficient. Top right: high revenue, labor-heavy. Bottom right: underpriced.</span></div></div>
   <div class="tw" style="margin-top:14px"><table><thead><tr><th>Client</th><th class="r">Paid</th><th class="r">Recognized</th><th class="r">A/R</th><th class="r">Contracted future</th><th class="r">Hours</th><th class="r">Rev / hr</th><th class="r">Labor cost</th><th class="r">Direct exp.</th><th class="r">Contribution</th><th class="r">Margin</th><th class="r">Units</th><th>Retainer use (this month)</th><th></th></tr></thead><tbody>
   ${rows.map(r => `<tr><td><b>${esc(r.name)}</b></td><td class="r num">${money(r.paid)}</td><td class="r num">${money(r.recog)}</td><td class="r num">${r.ar?money(r.ar):'–'}</td><td class="r num">${r.fut?money(r.fut):'–'}</td>
@@ -202,7 +202,8 @@ VIEWS.contracts = () => {
   /* Spec section 37: planned hours, renewal date and end date are gone. Section 38:
    * ad commission shows a percentage, never a dollar amount. */
   return `<div class="head"><div><h1>Clients</h1><p>Active agreements only. Billing frequency is recorded exactly as agreed; the monthly column is derived for analytics and never changes what a client is billed.</p></div><button class="btn pri" data-act="fin-new" data-k="contracts">Add client agreement</button></div>
-  <div class="band">
+  <div class="panel"><h3>Portfolio <span class="muted">labor hours vs paid revenue · bubble size is contribution dollars · color is contribution margin</span></h3><div class="chart tall" data-chart="quadrant"></div>
+  <div class="band" style="margin-top:14px">
     <div><div class="k">Monthly recurring</div><div class="v">${money(mrr())}</div><div class="s">fixed-cycle agreements, normalized</div></div>
     <div><div class="k">Active clients</div><div class="v">${new Set(C.map(c => c.clientId)).size}</div></div>
     <div><div class="k">Commission based</div><div class="v">${C.filter(c => c.contractType === 'ad commission').length}</div><div class="s">no fixed monthly value</div></div>
@@ -229,6 +230,8 @@ VIEWS.contracts = () => {
   </tbody></table></div>
   <p class="muted" style="margin-top:10px">Pricing changes are edits, not new agreements. Use Add charge for one-off or hourly work on an existing client, spec sections 40 to 42.</p>`;
 };
+
+VIEWS.contracts.after = () => mountCharts();
 
 /* One-off and hourly charges on an existing client, spec sections 41 and 42.
  * Writes a revenue line rather than forcing a duplicate client or contract. */
@@ -475,6 +478,13 @@ async function onClick(ev){
       ($('#st-client') || $('#st-cat'))?.focus();
       break;
     }
+    case 'tax-scope': UI.taxScope = a.dataset.scope; render(); break;
+    case 'tax-new-cat': openCatModal(null, a.dataset.scope); break;
+    case 'tax-edit-cat': openCatModal(a.dataset.id); break;
+    case 'tax-save-cat': await saveCat(a.dataset.id); break;
+    case 'tax-new-type': openTypeModal(null, a.dataset.cat); break;
+    case 'tax-edit-type': openTypeModal(a.dataset.code); break;
+    case 'tax-save-type': await saveType(a.dataset.code); break;
     case 'bill-add': openBillModal(a.dataset.id); break;
     case 'bill-save': await saveBill(a.dataset.id); break;
     case 'admin-tab': UI.adminTab = a.dataset.tab; render(); break;
@@ -546,11 +556,20 @@ async function saveRules(){
 }
 function onChange(ev){
   if (ev.target.id === 'ed-joint'){ const w = $('#ed-joint-wrap'); if (w) w.hidden = !ev.target.checked; }
-  if (ev.target.id === 'st-cat' || ev.target.id === 'ed-cat'){
-    const tid = ev.target.id === 'st-cat' ? 'st-type' : 'ed-type';
-    const hidden = $('#'+tid), q = $('#'+tid+'-q');
-    if (hidden && q){ hidden.value = ''; q.value = ''; }
-    const wrap = $('#st-other-wrap'); if (wrap && tid === 'st-type') wrap.hidden = true;
+  if (ev.target.id === 'st-cat'){
+    const sel = $('#st-type');
+    sel.innerHTML = taskOptions(UI.startScope || 'external', ev.target.value, '');
+    sel.disabled = !ev.target.value;
+    const w = $('#st-other-wrap'); if (w){ w.hidden = true; const o = $('#st-other'); if (o) o.value = ''; }
+  }
+  if (ev.target.id === 'st-type'){
+    const other = ev.target.value.startsWith('OTHER-');
+    const w = $('#st-other-wrap');
+    if (w){ w.hidden = !other; if (other) setTimeout(() => $('#st-other')?.focus(), 30); else { const o = $('#st-other'); if (o) o.value = ''; } }
+  }
+  if (ev.target.id === 'ed-cat'){
+    const sel = $('#ed-type');
+    if (sel) sel.innerHTML = taskOptions(UI.edit?.e?.scope || 'external', ev.target.value, '');
   }
 
   const el = ev.target, id = el.id;
@@ -678,7 +697,7 @@ async function importFile(file){
 VIEWS.admin = () => {
   if (!isAdmin()) return `<div class="head"><div><h1>System Admin</h1><p>You do not have access to this area.</p></div></div>`;
   const tab = UI.adminTab || 'clients';
-  const tabs = [['clients','Clients and leads'],['tasks','Task types'],['audit','Audit log']];
+  const tabs = [['clients','Clients and leads'],['taxonomy','Task taxonomy'],['audit','Change log']];
   return `<div class="head"><div><h1>System Admin</h1><p>Clients, leads, task types and the change record. Admins only.</p></div></div>
   <div class="row" style="margin-bottom:14px">${tabs.map(([v,l]) =>
     `<button class="btn ${tab===v?'pri':''}" data-act="admin-tab" data-tab="${v}">${l}</button>`).join('')}</div>
@@ -686,28 +705,112 @@ VIEWS.admin = () => {
 };
 VIEWS.admin.after = () => { const t = UI.adminTab || 'clients'; VIEWS[t]?.after?.(); };
 
-/* Company Projections, spec section 31. Forward-looking only: what is already
- * contracted, what it costs to run, and what that leaves. Nothing invented. */
+/* Company Projections. Forward view against the annual goal, with a date range
+ * so the revenue and growth picture can be read over any window. Costs include
+ * contractors, which were previously missing. Nothing is invented: months with no
+ * basis show as unavailable rather than as zero. */
 VIEWS.projections = () => {
-  if (!isAdmin()) return `<div class="head"><div><h1>Company Projections</h1><p>You do not have access to this area.</p></div></div>`;
+  if (!isAdmin()) return `<div class="head"><div><h1>Company Projections</h1><p>Admins only.</p></div></div>`;
+  const st = S.settings;
+  const goal = +st.annualGoal || 0;
+  const year = String(st.goalYear || today().slice(0,4));
   const rr = runRate();
-  const months = [];
-  let m = monthOf(today());
-  for (let i = 0; i < 6; i++){ months.push(m); m = addMonths(m, 1); }
+
+  /* Collected so far this year, straight from the ledger. */
+  const ytd = r2(sum(ledgerItems().filter(l => l.poolEligible !== false), l => paidIn(l, year+'-01-01', today())));
+  const pct = goal ? ytd / goal : 0;
+  const dayOfYear = Math.round((new Date(today()) - new Date(year+'-01-01')) / 86400000) + 1;
+  const yearDays = ((+year % 4 === 0 && +year % 100 !== 0) || +year % 400 === 0) ? 366 : 365;
+  const expectedPct = dayOfYear / yearDays;
+  const paceGap = r2(ytd - goal * expectedPct);
+  const runRateYear = dayOfYear ? r2(ytd / dayOfYear * yearDays) : 0;
+
+  /* Twelve months forward: contracted revenue against all recurring costs. */
+  const months = []; let m0 = monthOf(today());
+  for (let i = 0; i < 12; i++){ months.push(m0); m0 = addMonths(m0, 1); }
   const rows = months.map(mm => {
     const exp = expensesIn(mm+'-01', monthEnd(mm));
-    const expTotal = r2(sum(exp, x => x.amount));
+    const costs = r2(sum(exp, x => x.amount));
     const rev = r2(rr.recurringMonthly || 0);
-    return {m: mm, rev, expTotal, net: r2(rev - expTotal)};
+    return {m:mm, rev, costs, net:r2(rev - costs)};
   });
-  const anyExp = rows.some(r => r.expTotal > 0);
-  return `<div class="head"><div><h1>Company Projections</h1><p>Six months ahead, from active contracts with a fixed billing cycle. Commission and per-deliverable work is excluded rather than estimated.</p></div></div>
-  <div class="panel"><div class="tw"><table>
-    <thead><tr><th>Month</th><th class="r">Expected revenue</th><th class="r">Expected costs</th><th class="r">Net</th></tr></thead>
-    <tbody>${rows.map(r => `<tr><td>${monthLabel(r.m)}</td><td class="r num">${money2(r.rev)}</td>
-      <td class="r num">${anyExp ? money2(r.expTotal) : '<span class="muted">Insufficient data</span>'}</td>
-      <td class="r num">${anyExp ? money2(r.net) : '<span class="muted">–</span>'}</td></tr>`).join('')}</tbody>
-  </table></div></div>`;
+  const anyCost = rows.some(r => r.costs > 0);
+  const avgCost = anyCost ? r2(sum(rows, r => r.costs) / rows.length) : null;
+
+  const band = (k, v, s) => `<div><div class="k">${k}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
+
+  return `<div class="head"><div><h1>Company Projections</h1>
+    <p>Progress against the ${esc(year)} goal, and what the next twelve months look like on contracts already signed.</p></div></div>
+
+  <div class="band">
+    ${band(`${year} goal`, money(goal))}
+    ${band('Collected so far', money(ytd), `${Math.round(pct*100)}% of goal`)}
+    ${band('Pace', paceGap >= 0 ? 'Ahead' : 'Behind', `${money(Math.abs(paceGap))} ${paceGap>=0?'ahead of':'behind'} an even pace`)}
+    ${band('On this run rate', money(runRateYear), `projected full year`)}
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>Goal progress</h3>
+    <div class="goalbar"><div class="goalbar-fill" style="width:${Math.min(100, pct*100).toFixed(1)}%"></div>
+      <div class="goalbar-pace" style="left:${Math.min(100, expectedPct*100).toFixed(1)}%" title="Even pace for today"></div></div>
+    <div class="spread" style="margin-top:8px"><span class="muted">${money(ytd)} collected</span>
+      <span class="muted">marker shows an even pace for day ${dayOfYear} of ${yearDays}</span>
+      <span class="muted">${money(goal)}</span></div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="panel"><h3>Revenue by month <span class="muted">collected</span></h3>
+      <div class="chart" data-chart="projRevenue" style="height:280px"></div></div>
+    <div class="panel"><h3>Cumulative against goal</h3>
+      <div class="chart" data-chart="projCumulative" style="height:280px"></div></div>
+  </div>
+
+  <div class="panel" style="margin-top:14px"><h3>Next twelve months</h3>
+    <p class="muted" style="margin-top:0">Revenue counts active contracts with a fixed billing cycle. Commission and per-deliverable work is excluded rather than estimated. Costs include contractors and every recurring subscription.</p>
+    <div class="tw"><table><thead><tr><th>Month</th><th class="r">Expected revenue</th><th class="r">Expected costs</th><th class="r">Net</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${monthLabel(r.m)}</td><td class="r num">${money2(r.rev)}</td>
+        <td class="r num">${anyCost ? money2(r.costs) : '<span class="muted">Insufficient data</span>'}</td>
+        <td class="r num" style="${anyCost ? (r.net>=0?'color:var(--good)':'color:var(--crit)') : ''}">${anyCost ? money2(r.net) : '–'}</td></tr>`).join('')}
+    </tbody></table></div>
+    ${avgCost != null ? `<p class="muted" style="margin-bottom:0">Average monthly cost ${money2(avgCost)}, including contractors.</p>` : ''}
+  </div>`;
+};
+VIEWS.projections.after = () => mountCharts();
+
+/* Collected revenue by month across the whole ledger, so growth is readable over
+ * any window rather than a fixed six months. */
+CHARTS.projRevenue = () => {
+  const L = ledgerItems().filter(l => l.poolEligible !== false);
+  const by = {};
+  for (const l of L){
+    if (!l.paidDate) continue;
+    const k = l.paidDate.slice(0,7);
+    by[k] = (by[k] || 0) + paidIn(l, k+'-01', monthEnd(k));
+  }
+  const keys = Object.keys(by).sort();
+  const b = baseChart();
+  return {...b, xAxis:{type:'category', data:keys.map(monthLabel), ...b._ax},
+    yAxis:{type:'value', ...b._ax},
+    series:[{type:'bar', data:keys.map(k => r2(by[k])), itemStyle:{color:cssv('--signal'), borderRadius:[4,4,0,0]}}]};
+};
+CHARTS.projCumulative = () => {
+  const st = S.settings; const year = String(st.goalYear || today().slice(0,4));
+  const goal = +st.annualGoal || 0;
+  const L = ledgerItems().filter(l => l.poolEligible !== false);
+  const months = []; for (let i=1;i<=12;i++) months.push(`${year}-${String(i).padStart(2,'0')}`);
+  let run = 0; const cum = []; const pace = [];
+  months.forEach((k, i) => {
+    run += sum(L, l => paidIn(l, k+'-01', monthEnd(k)));
+    cum.push(k <= monthOf(today()) ? r2(run) : null);
+    pace.push(r2(goal * (i+1) / 12));
+  });
+  const b = baseChart();
+  return {...b, xAxis:{type:'category', data:months.map(monthLabel), ...b._ax}, yAxis:{type:'value', ...b._ax},
+    legend:{data:['Collected','Even pace'], bottom:0, textStyle:{color:cssv('--ink-2')}},
+    series:[
+      {name:'Collected', type:'line', smooth:true, data:cum, lineStyle:{width:3, color:cssv('--signal')},
+       itemStyle:{color:cssv('--signal')}, areaStyle:{color:cssv('--signal-soft')}, connectNulls:false},
+      {name:'Even pace', type:'line', data:pace, lineStyle:{type:'dashed', width:1.5, color:cssv('--ink-3')}, itemStyle:{color:cssv('--ink-3')}, symbol:'none'},
+    ]};
 };
 
 /* Tasks, spec sections 27 and 28. Work that is open, and work anyone can pick up.
@@ -732,3 +835,133 @@ VIEWS.board = () => {
     <div class="panel"><h3>Open across the team <span class="muted">${rest.length}</span></h3>${table(rest, 'Nothing open elsewhere.')}</div>
   </div>`;
 };
+
+/* ================================================================ Taxonomy admin */
+/* Create and edit the work taxonomy: categories, the task types under each, and
+ * the expected duration used for estimate-against-actual. Scope is set here and
+ * enforced everywhere else, so internal logging can never see external work. */
+
+VIEWS.taxonomy = () => {
+  if (!isAdmin()) return `<div class="head"><div><h1>Task taxonomy</h1><p>Admins only.</p></div></div>`;
+  const scope = UI.taxScope || 'external';
+  const cats = CATS().filter(c => c.scope === scope);
+  const types = Object.values(S.taxonomy.types || {});
+  const noEst = types.filter(t => t.active !== false && !t.estimateHours).length;
+
+  return `<div class="head"><div><h1>Task taxonomy</h1>
+    <p>Every category and task belongs to internal or external work. Expected time drives the estimate-against-actual comparison; set it from a real time trial rather than a guess.</p></div>
+    <button class="btn pri" data-act="tax-new-cat" data-scope="${scope}">New category</button></div>
+
+  <div class="row" style="margin-bottom:14px;align-items:center;gap:12px">
+    <div class="scope-switch" data-scope="${scope}"><span class="thumb"></span>
+      <button type="button" class="seg-b ${scope==='external'?'on':''}" data-act="tax-scope" data-scope="external">External</button>
+      <button type="button" class="seg-b ${scope==='internal'?'on':''}" data-act="tax-scope" data-scope="internal">Internal</button>
+    </div>
+    <span class="muted">${cats.length} categories · ${types.filter(t => t.scope===scope).length} tasks${noEst?` · ${noEst} without an expected time`:''}</span>
+  </div>
+
+  <div class="stack">
+  ${cats.map(c => {
+    const list = typesFor(scope, c.id).filter(t => !t.code.startsWith('OTHER-'));
+    return `<div class="panel">
+      <div class="spread" style="align-items:flex-start">
+        <div><h3 style="margin:0">${esc(c.name)}</h3>
+          <span class="muted" style="font-size:12px">${c.revenueLinked ? 'Revenue linked' : 'Not revenue linked'} · ${list.length} task${list.length===1?'':'s'}</span></div>
+        <span class="row">
+          <button class="btn sm" data-act="tax-new-type" data-cat="${esc(c.id)}">Add task</button>
+          <button class="btn sm ghost" data-act="tax-edit-cat" data-id="${esc(c.id)}">Edit</button>
+        </span>
+      </div>
+      ${list.length ? `<table style="margin-top:10px"><thead><tr>
+        <th>Task</th><th>Deliverable</th><th class="r">Expected time</th><th>Source</th><th></th>
+      </tr></thead><tbody>
+        ${list.map(t => `<tr>
+          <td><b>${esc(t.name)}</b> <span class="code">${esc(t.code)}</span></td>
+          <td>${t.unit ? esc(t.unit) : '<span class="muted">time only</span>'}</td>
+          <td class="r num">${t.estimateHours ? t.estimateHours.toFixed(2)+' h' : '<span class="chip warn">not set</span>'}</td>
+          <td class="muted">${esc(t.estimateSource || '–')}</td>
+          <td><button class="btn sm ghost" data-act="tax-edit-type" data-code="${esc(t.code)}">Edit</button></td>
+        </tr>`).join('')}
+      </tbody></table>` : `<p class="muted" style="margin:10px 0 0">No tasks yet.</p>`}
+    </div>`;
+  }).join('')}
+  </div>`;
+};
+
+function openCatModal(id, scope){
+  const c = id ? {...S.taxonomy.categories[id]} : {id:'', name:'', scope:scope||'external', revenueLinked:false, active:true, order:999};
+  openModal(`<header><h2>${id?'Edit category':'New category'}</h2><button class="btn ghost" data-act="close">Close</button></header>
+  <div class="body">
+    <label class="field"><span>Name</span><input class="in" id="tc-name" value="${esc(c.name)}" autofocus></label>
+    <div class="fg">
+      <label class="field"><span>Scope</span><select class="in" id="tc-scope">
+        ${['external','internal'].map(s => `<option value="${s}" ${s===c.scope?'selected':''}>${s==='external'?'External':'Internal'}</option>`).join('')}
+      </select></label>
+      <label class="field"><span>Active</span><select class="in" id="tc-active">
+        <option value="yes" ${c.active!==false?'selected':''}>Yes</option><option value="no" ${c.active===false?'selected':''}>No</option>
+      </select></label>
+    </div>
+    <label class="check"><input type="checkbox" id="tc-rev" ${c.revenueLinked?'checked':''}> Revenue linked<br>
+      <span class="muted" style="font-weight:400">External delivery work usually is. Internal work usually is not.</span></label>
+    <div class="err" id="tc-err"></div>
+  </div>
+  <footer><span></span><button class="btn pri" data-act="tax-save-cat" data-id="${esc(id||'')}">Save</button></footer>`);
+}
+
+async function saveCat(id){
+  const name = $('#tc-name').value.trim();
+  if (!name){ $('#tc-err').textContent = 'Give it a name.'; return; }
+  const cid = id || name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,40);
+  const cats = {...(S.taxonomy.categories||{})};
+  cats[cid] = {...(cats[cid]||{}), id:cid, name, scope:$('#tc-scope').value,
+    revenueLinked:$('#tc-rev').checked, active:$('#tc-active').value === 'yes',
+    order: cats[cid]?.order ?? Object.keys(cats).length};
+  await saveConfig('taxonomy', {categories:{[cid]:cats[cid]}});
+  closeModal(); toast(id?'Category updated':'Category added');
+}
+
+function openTypeModal(code, categoryId){
+  const t = code ? {...S.taxonomy.types[code]} : {code:'', name:'', categoryId, unit:null, estimateHours:null, estimateSource:'estimate', active:true, order:0};
+  const cat = S.taxonomy.categories[t.categoryId || categoryId];
+  openModal(`<header><h2>${code?'Edit task':'New task'}</h2><button class="btn ghost" data-act="close">Close</button></header>
+  <div class="body">
+    <p class="muted" style="margin-top:0">In <b>${esc(cat?.name || '–')}</b> · ${esc(cat?.scope || '')}</p>
+    <label class="field"><span>Task name</span><input class="in" id="tt-name" value="${esc(t.name)}" autofocus></label>
+    <div class="fg">
+      <label class="field"><span>Deliverable <span class="muted">(optional)</span></span>
+        <input class="in" id="tt-unit" value="${esc(t.unit||'')}" placeholder="email, post, reel…" list="units">
+        <datalist id="units">${['email','post','graphic','reel','newsletter','carousel','video','report','proposal','page','ad','deck'].map(u=>`<option value="${u}">`).join('')}</datalist>
+        <small>Leave empty for work that is not countable, like calls or meetings.</small></label>
+      <label class="field"><span>Expected time (hours)</span>
+        <input class="in num" type="number" step="0.05" min="0" id="tt-est" value="${t.estimateHours ?? ''}" placeholder="from a time trial">
+        <small>Drives variance. Leave empty rather than guessing.</small></label>
+    </div>
+    <div class="fg">
+      <label class="field"><span>Category</span><select class="in" id="tt-cat">
+        ${CATS().filter(c => c.scope === (cat?.scope || 'external')).map(c => `<option value="${esc(c.id)}" ${c.id===t.categoryId?'selected':''}>${esc(c.name)}</option>`).join('')}
+      </select></label>
+      <label class="field"><span>Active</span><select class="in" id="tt-active">
+        <option value="yes" ${t.active!==false?'selected':''}>Yes</option><option value="no" ${t.active===false?'selected':''}>No</option>
+      </select></label>
+    </div>
+    <div class="err" id="tt-err"></div>
+  </div>
+  <footer><span></span><button class="btn pri" data-act="tax-save-type" data-code="${esc(code||'')}">Save</button></footer>`);
+}
+
+async function saveType(code){
+  const name = $('#tt-name').value.trim();
+  if (!name){ $('#tt-err').textContent = 'Give it a name.'; return; }
+  const cid = $('#tt-cat').value;
+  const scope = S.taxonomy.categories[cid]?.scope || 'external';
+  const c = code || (name.toUpperCase().replace(/[^A-Z]/g,'').slice(0,3) || 'TSK') + '-' + Math.random().toString(36).slice(2,6).toUpperCase();
+  const est = $('#tt-est').value === '' ? null : +$('#tt-est').value;
+  const prev = S.taxonomy.types[code] || {};
+  const row = {...prev, code:c, name, categoryId:cid, scope,
+    unit: $('#tt-unit').value.trim() || null,
+    estimateHours: est,
+    estimateSource: est == null ? null : (prev.estimateHours === est ? prev.estimateSource : 'measured'),
+    active: $('#tt-active').value === 'yes', order: prev.order ?? 0};
+  await saveConfig('taxonomy', {types:{[c]:row}});
+  closeModal(); toast(code?'Task updated':'Task added');
+}

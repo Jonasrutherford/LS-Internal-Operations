@@ -195,7 +195,7 @@ function onVisibility(){
 async function timerSet(patch){ await S.db.doc('timers/'+S.personId).set({...(S.timers[S.personId]||{}), ...patch, updatedAt:Date.now(), device:navigator.userAgent.slice(0,60)}); }
 async function startTimer(d){
   if (S.timers[S.personId]?.running){ toast('A timer is already running. Use Switch.'); return; }
-  await timerSet({running:true, start:Date.now(), pausedMs:0, pausedAt:null, scope:d.scope||'external', clientId:d.clientId, category:d.category||null, typeId:d.typeId||null, taskName:d.taskName||null, note:''});
+  await timerSet({running:true, start:Date.now(), pausedMs:0, pausedAt:null, scope:d.scope||'external', clientId:d.clientId, categoryId:d.categoryId||null, typeId:d.typeId||null, taskName:d.taskName||null, note:''});
   toast('Timer started');
 }
 async function pauseTimer(){ const t = S.timers[S.personId]; if (t?.running && !t.pausedAt) await timerSet({pausedAt:Date.now()}); }
@@ -209,7 +209,7 @@ function stopTimer(){
   openEntryEditor({
     personId:S.personId, date:dayKey(t.start), start:t.start, end,
     pausedMin: Math.round((t.pausedMs||0)/60000),
-    scope:t.scope||'external', clientId:t.clientId, category:t.category||null,
+    scope:t.scope||'external', clientId:t.clientId, categoryId:t.categoryId||null,
     typeId:t.typeId, taskName:t.taskName||null, note:'', unitType:ty?.unit||null,
     billable: defaultBillable(t.typeId, t.clientId), payoutEligible: ty?.payoutEligible !== false,
     cls: ty?.cls || null, status:'draft', source:'lucid',
@@ -268,74 +268,31 @@ function pickType(id, code){
 
 /* ClickUp removed for V1, spec section 4. No sync, no task ids, no API key. */
 
-/* Work classification, spec sections 9 and 10. Scope is the primary split and the
- * category list changes with it. This sits above the existing task-type taxonomy,
- * which still drives units and benchmarks, so older entries stay valid. */
-const EXTERNAL_CATEGORIES = [
-  'Sales & outreach','Lead generation','Lead qualification','Discovery calls',
-  'Proposals & closing','Client onboarding','Client communication','Account management',
-  'Client strategy','Service fulfillment','Content creation for clients','Client reporting',
-  'Client retention','Upselling & cross-selling','Partnership development','Customer support',
-  'Client feedback & satisfaction',
-];
-const INTERNAL_CATEGORIES = [
-  'Hiring & recruiting','Employee onboarding','Training & development','Internal operations',
-  'SOPs & process documentation','Workflow automation','Project management','Quality assurance',
-  'Finance & accounting','Legal & administration','Internal meetings','Performance management',
-  'Resource allocation','Strategic planning','Internal marketing','Technology & infrastructure',
-  'Team management',
-];
+/* Work classification. Categories and task types both carry a scope, so internal
+ * logging can never surface external work and the reverse holds too. The taxonomy
+ * is data, editable in System Admin, not a list hard-coded here. */
+const CATS = () => Object.values(S.taxonomy.categories || {}).filter(c => c.active !== false).sort((a,b) => a.order - b.order);
+const categoriesFor = scope => CATS().filter(c => c.scope === scope || c.scope === 'both');
+const catName = id => (S.taxonomy.categories || {})[id]?.name || '';
+const catOf = typeId => ttype(typeId)?.categoryId || null;
+/* Scope of a logged row: explicit first, then the task type, then the category. */
+function scopeOfType(typeId){
+  const t = ttype(typeId); if (!t) return null;
+  return t.scope || (S.taxonomy.categories || {})[t.categoryId]?.scope || null;
+}
+function typesFor(scope, categoryId){
+  return Object.values(S.taxonomy.types || {})
+    .filter(t => t.active !== false
+      && (t.scope === scope || t.scope === 'both')
+      && (!categoryId || t.categoryId === categoryId || t.categoryId == null))
+    .sort((a,b) => (a.order - b.order) || a.name.localeCompare(b.name));
+}
 
-/* Each category maps to the service families whose task types belong under it,
- * so choosing a category narrows the task list instead of showing all 80.
- * A category with no entry here falls back to every family. */
-const CATEGORY_FAMILIES = {
-  // External
-  'Sales & outreach':             ['sales'],
-  'Lead generation':              ['sales'],
-  'Lead qualification':           ['sales'],
-  'Discovery calls':              ['sales'],
-  'Proposals & closing':          ['sales','strategy'],
-  'Client onboarding':            ['client'],
-  'Client communication':         ['client'],
-  'Account management':           ['client'],
-  'Client strategy':              ['strategy'],
-  'Service fulfillment':          ['web','seo','paid','email','automation','design','social','video'],
-  'Content creation for clients': ['editorial','social','video','design'],
-  'Client reporting':             ['reporting'],
-  'Client retention':             ['client'],
-  'Upselling & cross-selling':    ['sales','client'],
-  'Partnership development':      ['sales'],
-  'Customer support':             ['client'],
-  'Client feedback & satisfaction': ['client'],
-  // Internal
-  'Hiring & recruiting':          ['internal'],
-  'Employee onboarding':          ['internal'],
-  'Training & development':       ['internal'],
-  'Internal operations':          ['internal'],
-  'SOPs & process documentation': ['internal'],
-  'Workflow automation':          ['automation','internal'],
-  'Project management':           ['internal'],
-  'Quality assurance':            ['internal'],
-  'Finance & accounting':         ['internal'],
-  'Legal & administration':       ['internal'],
-  'Internal meetings':            ['internal'],
-  'Performance management':       ['internal'],
-  'Resource allocation':          ['internal'],
-  'Strategic planning':           ['strategy','internal'],
-  'Internal marketing':           ['social','editorial','design','video','web','seo','paid','email'],
-  'Technology & infrastructure':  ['automation','web','internal'],
-  'Team management':              ['internal'],
-};
-const familiesForCategory = cat => CATEGORY_FAMILIES[cat] || null;
-
-const categoriesFor = scope => scope === 'internal' ? INTERNAL_CATEGORIES : EXTERNAL_CATEGORIES;
-
-/* Clients and Leads listed separately, spec section 11. Internal work carries no
- * client, so "Internal" never appears here. */
+/* Clients and Leads only. Internal is a scope and never appears as a client. */
 function partyOptions(sel){
-  const entries = Object.entries(S.clients).filter(([id,c]) => id !== 'internal' && (c.active !== false || id === sel));
-  const isLead = ([id,c]) => id === 'prospects' || c.kind === 'lead' || c.lead === true;
+  const entries = Object.entries(S.clients).filter(([id,c]) =>
+    id !== 'internal' && c.kind !== 'internal' && (c.active !== false || id === sel));
+  const isLead = ([id,c]) => id === 'prospects' || c.kind === 'lead';
   const group = (label, list) => list.length
     ? `<optgroup label="${label}">${list.map(([id,c]) => `<option value="${id}" ${id===sel?'selected':''}>${esc(c.name)}</option>`).join('')}</optgroup>` : '';
   const byName = (a,b) => a[1].name.localeCompare(b[1].name);
@@ -363,26 +320,38 @@ function openStart(prefill={}){
 }
 /* Rebuilt whenever the scope toggle changes, so the category list always matches. */
 function startFields(scope, prefill={}){
+  const cats = categoriesFor(scope);
   return `${scope === 'external' ? `<label class="field"><span>Client or lead</span><select class="in" id="st-client" autofocus>${partyOptions(prefill.clientId)}</select></label>` : ''}
     <label class="field"><span>Category</span><select class="in" id="st-cat" ${scope==='internal'?'autofocus':''}>
       <option value="">Choose…</option>
-      ${categoriesFor(scope).map(c => `<option value="${esc(c)}" ${c===prefill.category?'selected':''}>${esc(c)}</option>`).join('')}
+      ${cats.map(c => `<option value="${esc(c.id)}" ${c.id===prefill.categoryId?'selected':''}>${esc(c.name)}</option>`).join('')}
     </select></label>
-    <label class="field"><span>Task type</span>${typeCombo('st-type', prefill.typeId)}</label>
-    <label class="field" id="st-other-wrap" hidden><span>Create task name</span><input class="in" id="st-other" placeholder="Name this task"></label>`;
+    <label class="field"><span>Task</span><select class="in" id="st-type" disabled>
+      <option value="">Choose a category first</option>
+    </select></label>
+    <label class="field" id="st-other-wrap" hidden><span>Name this task</span><input class="in" id="st-other" placeholder="What are you doing"></label>`;
+}
+/* Task options for the chosen scope and category, plus Other. Nothing from the
+ * opposite scope can appear here. */
+function taskOptions(scope, categoryId, sel){
+  const list = typesFor(scope, categoryId).filter(t => !t.code.startsWith('OTHER-'));
+  const other = `OTHER-${scope.slice(0,3).toUpperCase()}`;
+  return `<option value="">Choose…</option>`
+    + list.map(t => `<option value="${esc(t.code)}" ${t.code===sel?'selected':''}>${esc(t.name)}${t.unit?` (per ${esc(t.unit)})`:''}</option>`).join('')
+    + `<option value="${other}" ${sel===other?'selected':''}>Other…</option>`;
 }
 async function startGo(){
   const scope = UI.startScope || 'external';
   const clientId = scope === 'external' ? ($('#st-client')?.value || '') : 'internal';
-  const category = $('#st-cat')?.value || '';
+  const categoryId = $('#st-cat')?.value || '';
   const typeId = $('#st-type')?.value || '';
   const otherName = ($('#st-other')?.value || '').trim();
   const err = $('#st-err');
   if (scope === 'external' && !clientId){ err.textContent = 'Choose a client or lead.'; return; }
-  if (!category){ err.textContent = 'Choose a category.'; return; }
+  if (!categoryId){ err.textContent = 'Choose a category.'; return; }
   if (!typeId && !otherName){ err.textContent = 'Choose a task type, or pick Other and name it.'; return; }
   closeModal();
-  await startTimer({scope, clientId, category, typeId, taskName: otherName || null});
+  await startTimer({scope, clientId, categoryId, typeId: typeId.startsWith('OTHER-') ? null : typeId, taskName: otherName || null});
 }
 
 /* ---------- entry editor (new, edit, stop-timer completion) */
@@ -422,9 +391,9 @@ function openEntryEditor(e, opts={}){
     <div class="spread"><span id="ed-dur" class="eyebrow"></span></div>
     <div class="fg">
       <label class="field"><span>Client or lead</span><select class="in" id="ed-client">${partyOptions(e.clientId)}</select></label>
-      <label class="field"><span>Category</span><select class="in" id="ed-cat"><option value="">Choose…</option>${categoriesFor(e.scope||'external').map(c => `<option value="${esc(c)}" ${c===e.category?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
+      <label class="field"><span>Category</span><select class="in" id="ed-cat"><option value="">Choose…</option>${categoriesFor(e.scope||'external').map(c => `<option value="${esc(c.id)}" ${c.id===e.categoryId?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
     </div>
-    <label class="field"><span>Task type</span>${typeCombo('ed-type', e.typeId)}</label>
+    <label class="field"><span>Task</span><select class="in" id="ed-type">${taskOptions(e.scope||'external', e.categoryId, e.typeId)}</select></label>
     `}
 
     ${/* Units exist only where the task type defines one, spec section 14. The unit
@@ -485,7 +454,7 @@ function readEditor(){
     e.minutes = Math.max(0, Math.round((e.end - e.start)/60000) - e.pausedMin);
   } else { e.start = e.start || null; e.end = e.end || null; }
   e.clientId = $('#ed-client').value || null; e.typeId = $('#ed-type').value || null;
-  if ($('#ed-cat')) e.category = $('#ed-cat').value || null;
+  if ($('#ed-cat')) e.categoryId = $('#ed-cat').value || null;
   e.scope = e.clientId === 'internal' ? 'internal' : (e.scope || 'external');
   const u = $('#ed-units')?.value; e.units = (u === '' || u == null) ? null : +u;
   e.unitType = $('#ed-unit')?.value || null;

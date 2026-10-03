@@ -157,7 +157,7 @@ function splitCents(total, weights){
 function hoursFor(m, personId){
   const from = m+'-01', to = monthEnd(m);
   const rows = laborRows().filter(r => r.personId === personId && inRange(r.date, from, to) && r.payoutEligible);
-  return { approved: sum(rows.filter(r => r.status === 'approved'), r => r.minutes), pending: sum(rows.filter(r => r.status !== 'approved'), r => r.minutes) };
+  return { approved: sum(rows, r => r.minutes), pending: 0 };
 }
 /* Payouts.
  *
@@ -287,7 +287,7 @@ function benchmarks(){
   if (S._bm && S._bv === S.v) return S._bm;
   const by = {};
   for (const r of laborRows()){
-    if (r.status !== 'approved' || !(r.units > 0) || !r.typeId || r.background) continue;
+    if (!(r.units > 0) || !r.typeId || r.background) continue;
     const e = entryById(r.entryId);
     (by[r.typeId] ||= []).push({perUnit: r.minutes / r.units, units:r.units, minutes:r.minutes, ai: e?.ai && e.ai !== 'none', complexity: e?.complexity, revision: +e?.revision||0, date:r.date});
   }

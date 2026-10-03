@@ -27,7 +27,12 @@ function filteredRows(f=F()){
   const [from, to] = rangeDates(f);
   return laborRows().filter(r => inRange(r.date, from, to) && (f.person==='all' || r.personId===f.person) && (f.scope==='all' || !f.scope || r.scope===f.scope) && (f.client==='all' || r.clientId===f.client) && (f.family==='all' || r.family===f.family));
 }
-function statusChip(s){ return ({draft:`<span class="chip">Draft</span>`, submitted:`<span class="chip warn">Submitted</span>`, approved:`<span class="chip good">Approved</span>`, rejected:`<span class="chip crit">Rejected</span>`})[s] || `<span class="chip">${esc(s)}</span>`; }
+/* No approval workflow: nobody is signing off that time happened. The only state
+ * that matters is whether the task itself is finished. */
+function statusChip(e){
+  const done = typeof e === 'object' ? e.completed !== false : e !== false;
+  return done ? `<span class="chip good">Finished</span>` : `<span class="chip warn">In progress</span>`;
+}
 function baseChart(){
   const ink2 = cssv('--ink-2'), ink3 = cssv('--ink-3'), line = cssv('--line');
   return { textStyle:{fontFamily:'Nunito, system-ui, sans-serif', color:ink2}, animationDuration:500,
@@ -88,27 +93,27 @@ function entryRow(e, o={}){
     ${o.date ? `<td class="num muted">${dateLabel(e.date)}</td>` : ''}
     <td class="num muted">${e.start ? timeKey(e.start) : '–'}</td>
     <td class="wrap"><b>${esc(typeName(e.typeId))}</b>${e.units ? ` <span class="muted">× ${e.units}</span>` : ''}<br><span class="muted">${esc(cls?.name || 'Unassigned')}${e.note ? ' · ' + esc(e.note.slice(0,80)) : ''}</span></td>
-    <td class="r num">${hm(e.minutes)}</td><td>${statusChip(e.status)}</td></tr>`;
+    <td class="r num">${hm(e.minutes)}</td><td>${statusChip(e)}</td></tr>`;
 }
 
 /* ================================================================ TIMESHEET */
 VIEWS.entries = () => {
   const f = UI.tf ||= {month:today().slice(0,7), person:S.personId, status:'all', client:'all', q:''};
   const months = [...new Set([today().slice(0,7), ...Object.keys(S.entryDocs)])].sort().reverse();
-  let list = allEntries().filter(e => monthOf(e.date) === f.month && (f.person==='all' || e.personId===f.person) && (f.status==='all' || e.status===f.status || (f.status==='review' && e.needsReview)) && (f.client==='all' || e.clientId===f.client));
+  let list = allEntries().filter(e => monthOf(e.date) === f.month && (f.person==='all' || e.personId===f.person) && (f.status==='all' || (f.status==='done' ? e.completed !== false : e.completed === false)) && (f.client==='all' || e.clientId===f.client));
   if (f.q) { const q = f.q.toLowerCase(); list = list.filter(e => (typeName(e.typeId)+' '+clientName(e.clientId)+' '+(e.note||'')).toLowerCase().includes(q)); }
   list.sort((a,b) => (b.date.localeCompare(a.date)) || (b.start - a.start));
   const myDrafts = list.filter(e => e.personId === S.personId && e.status === 'draft' && e.clientId && e.typeId);
   const toApprove = list.filter(e => e.personId !== S.personId && e.status === 'submitted');
   const locked = isLocked(f.month);
   const byDay = groupBy(list, e => e.date);
-  return `<div class="head"><div><h1>Time Log</h1><p>Every session, who did it, for which client and task. Drafts stay private until you submit them; ${S.settings.approvalMode==='self' ? 'submitting approves them.' : 'your partner approves submitted time before it counts toward payouts.'}</p></div>
+  return `<div class="head"><div><h1>Time Log</h1><p>Every session: who did it, internal or external, for whom, and what kind of work it was.</p></div>
     <div class="row">${myDrafts.length ? `<button class="btn pri" data-act="submit-all" ${locked?'disabled':''}>Submit my ${myDrafts.length} drafts</button>` : ''}${toApprove.length && isPartner() ? `<button class="btn pri" data-act="approve-all" ${locked?'disabled':''}>Approve ${toApprove.length} from ${esc(person(toApprove[0].personId).name)}</button>` : ''}<button class="btn" data-act="log">Log time</button></div></div>
   ${locked ? `<div class="note">${monthLabel(f.month)} is locked for payouts. Entries are read-only.</div>` : ''}
   <div class="filters">
     <select class="in" id="tf-month" style="width:auto">${months.map(m => `<option value="${m}" ${m===f.month?'selected':''}>${monthLabel(m)}</option>`).join('')}</select>
     <select class="in" id="tf-person" style="width:auto"><option value="all">Everyone</option>${personOptions(f.person, true)}</select>
-    <select class="in" id="tf-status" style="width:auto">${[['all','Any status'],['draft','Draft'],['submitted','Submitted'],['approved','Approved'],['rejected','Rejected'],['review','Needs review']].map(([v,l]) => `<option value="${v}" ${v===f.status?'selected':''}>${l}</option>`).join('')}</select>
+    <select class="in" id="tf-status" style="width:auto">${[['all','Any status'],['open','In progress'],['done','Finished']].map(([v,l]) => `<option value="${v}" ${v===f.status?'selected':''}>${l}</option>`).join('')}</select>
     <select class="in" id="tf-client" style="width:auto"><option value="all">All clients</option>${clientOptions(f.client, false)}</select>
     <input class="in" id="tf-q" placeholder="Search notes" value="${esc(f.q)}" style="width:180px">
     <span class="muted">${list.length} entries · ${hrs(sum(list, e=>e.minutes))} h</span>
@@ -119,7 +124,7 @@ VIEWS.entries = () => {
     <td class="num muted">${e.start?timeKey(e.start):'–'}–${e.end?timeKey(e.end):'–'}</td>
     <td class="wrap"><b>${esc(typeName(e.typeId))}</b> <span class="code">${esc(e.typeId||'')}</span>${(e.allocations||[]).length?` <span class="chip">+${e.allocations.length} split</span>`:''}<br><span class="muted">${esc((e.note||'').slice(0,110))}</span>${e.needsReview?`<br><span class="chip warn">Check mapping</span>`:''}</td>
     <td>${esc(clientName(e.clientId))}</td><td class="r num">${hrs(e.minutes)}</td><td class="r num">${e.units ?? ''}</td>
-    <td>${statusChip(e.status)}${e.source==='import'?' <span class="chip">imported</span>':''}</td>
+    <td>${statusChip(e)}</td>
     <td style="white-space:nowrap">${entryActions(e, locked)}</td></tr>`).join('')).join('')}
   </tbody></table></div>` : `<div class="panel empty">No entries match. Start a timer or log time to add one.</div>`}`;
 };
@@ -289,7 +294,6 @@ VIEWS.me = () => {
   const days = new Set(E.map(e => e.date)).size;
   const bill = sum(rows.filter(r=>r.billable), r=>r.minutes), tot = sum(rows, r=>r.minutes);
   const units = sum(rows, r => r.units||0);
-  const unapproved = allEntries().filter(e => e.personId === who && e.status !== 'approved').length;
   const band = (k, v, s='') => `<div><div class="k">${k}</div><div class="v">${v}</div>${s?`<div class="s">${s}</div>`:''}</div>`;
   // revenue associated with this person's work: client paid revenue in range × person's share of that client's hours
   const allR = laborRows().filter(r => inRange(r.date, from, to));
@@ -315,7 +319,7 @@ VIEWS.me = () => {
     ${band('Task switches per day', days ? (E.length/days).toFixed(1) : '–', `across ${days} working days`)}
     ${band('Deliverables logged', units || '–')}
     ${band('Revenue tied to your work', money(assoc), 'client revenue × your share of its hours')}
-    ${band('Not yet approved', unapproved, unapproved ? '<a href="#entries" data-go="entries">open timesheet</a>' : '')}${band('Hours in range', hrs(tot)+' h', `${E.length} entries`)}
+    ${band('Open tasks', allEntries().filter(e => e.personId === who && e.completed === false).length, '<a href="#board" data-go="board">open tasks</a>')}${band('Hours in range', hrs(tot)+' h', `${E.length} entries`)}
   </div>
   <div class="grid g2" style="margin-top:14px">
     <div class="panel"><h3>Client mix</h3><div class="chart short" data-chart="meClients"></div></div>
