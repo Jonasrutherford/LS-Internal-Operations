@@ -55,6 +55,53 @@ if (await startBtn.count()) {
   console.log('category options:', await page.locator('#st-cat option').count());
 }
 
+// Client pickers must not offer Internal, and must not offer retired clients.
+await page.evaluate(() => location.hash = '#performance');
+await page.waitForTimeout(500);
+await page.evaluate(() => { try { closeModal(); } catch {} });
+await page.waitForTimeout(250);
+const filterClients = await page.locator('#f-client option').allTextContents();
+console.log('\nfilter clients:', filterClients.join(' | '));
+const bad = filterClients.filter(t => /internal|Casa Barranca|HMD|Hospital Procedure|Dawn|Solid Supply/i.test(t));
+console.log(bad.length ? 'FAIL leaked into client filter: ' + bad.join(', ') : 'OK: no internal or retired clients in the filter');
+console.log('scope filter present:', await page.locator('#f-scope').count() > 0);
+
+// Category must narrow the task list.
+await page.evaluate(() => { try { closeModal(); } catch {} });
+await page.waitForTimeout(300);
+await page.evaluate(() => location.hash = '#track');
+await page.waitForTimeout(400);
+await page.locator('[data-act="start"]').first().click();
+await page.waitForTimeout(500);
+const allTypes = await page.evaluate(() => { comboList('st-type',''); return document.querySelectorAll('[data-combo="st-type"] .opt').length; });
+await page.selectOption('#st-cat', 'Client reporting');
+await page.waitForTimeout(250);
+const narrowed = await page.evaluate(() => { comboList('st-type',''); return document.querySelectorAll('[data-combo="st-type"] .opt').length; });
+console.log(`task types: ${allTypes} unfiltered -> ${narrowed} under "Client reporting"`,
+  narrowed > 0 && narrowed < allTypes ? 'OK' : 'FAIL');
+
+// Full start flow.
+await page.evaluate(() => { const o=[...document.querySelectorAll('[data-combo="st-type"] .opt')][0]; pickType('st-type', o.dataset.code); });
+await page.selectOption('#st-client', { index: 1 });
+await page.locator('[data-act="start-go"]').click();
+await page.waitForTimeout(700);
+const running = await page.locator('.timer.on').count();
+console.log('timer started:', running > 0 ? 'OK' : 'FAIL');
+if (running) {
+  await page.locator('[data-act="pause"]').click(); await page.waitForTimeout(300);
+  console.log('paused state shown:', await page.locator('.state-pill.is-paused').count() > 0 ? 'OK' : 'FAIL');
+  await page.locator('[data-act="resume"]').click(); await page.waitForTimeout(300);
+  await page.locator('[data-act="stop"]').click(); await page.waitForTimeout(600);
+  const stopFields = await page.evaluate(() => ({
+    person: !!document.querySelector('#ed-person')?.offsetParent,
+    deliverable: !!document.querySelector('#ed-deliv'),
+    done: !!document.querySelector('#ed-done'),
+    joint: !!document.querySelector('#ed-joint'),
+  }));
+  console.log('stop sheet:', JSON.stringify(stopFields),
+    (!stopFields.person && stopFields.deliverable && stopFields.done && stopFields.joint) ? 'OK' : 'FAIL');
+}
+
 console.log('\nERRORS (' + errors.length + '):');
 console.log(errors.slice(0, 12).join('\n') || '  none');
 await browser.close();

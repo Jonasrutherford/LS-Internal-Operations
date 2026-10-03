@@ -370,6 +370,7 @@ const NAV = [
  * so hiding the link is a convenience rather than the control. */
 const ADMIN_GROUPS = ['Finances'];
 const ADMIN_VIEWS = ['revenue','payouts','contracts','expenses','admin','clients','tasks','projections','audit'];
+/* 'company' is the old combined dashboard, superseded by 'performance'. */
 const VIEWS = {};
 
 /* Permissions, spec section 47. Partners administer; everyone else is an employee
@@ -582,9 +583,11 @@ function openModal(html, opts={}){
 }
 function closeModal(){ $('#modal').innerHTML = ''; UI.modal = null; }
 
+/* Grouped into Clients and Leads. Internal never appears: it is a scope, not a
+ * client, and has its own filter. Inactive legacy names only show if already
+ * selected, so historical entries stay editable. */
 function clientOptions(sel, withBlank=true){
-  const act = Object.entries(S.clients).sort((a,b) => (a[1].kind==='internal') - (b[1].kind==='internal') || a[1].name.localeCompare(b[1].name));
-  return (withBlank ? `<option value="">Choose client…</option>` : '') + act.filter(([id,c]) => c.active !== false || id === sel).map(([id,c]) => `<option value="${id}" ${id===sel?'selected':''}>${esc(c.name)}</option>`).join('');
+  return (withBlank ? `<option value="">Choose client…</option>` : '') + partyOptions(sel).replace(/^<option value="">[^<]*<\/option>/, '');
 }
 function personOptions(sel, all=false){ return Object.entries(S.people).filter(([id,p]) => all || p.poolMember || p.active).map(([id,p]) => `<option value="${id}" ${id===sel?'selected':''}>${esc(p.name)}</option>`).join(''); }
 
@@ -595,7 +598,11 @@ function typeCombo(id, value){
 function comboList(id, q){
   const box = $(`[data-combo="${id}"] .list`); q = (q||'').toLowerCase().trim();
   const T = S.taxonomy.types; let html = ''; let first = null;
-  for (const f of FAMILY_ORDER()){
+  /* Narrow to the families that belong under the chosen category. Typing a query
+   * searches everything, so nothing is ever unreachable. */
+  const catEl = id === 'st-type' ? $('#st-cat') : $('#ed-cat');
+  const fams = (!q && catEl?.value) ? familiesForCategory(catEl.value) : null;
+  for (const f of (fams || FAMILY_ORDER())){
     const opts = Object.values(T).filter(t => t.family === f && t.active !== false && (!q || (t.code+' '+t.name+' '+famName(f)+' '+(t.unit||'')).toLowerCase().includes(q))).sort((a,b)=>a.order-b.order);
     if (!opts.length) continue;
     html += `<div class="fam">${esc(famName(f))}</div>` + opts.map(t => { first ||= t.code; return `<div class="opt" data-pick="${id}" data-code="${t.code}"><span>${esc(t.name)}</span><small>${t.code} · per ${esc(t.unit)}</small></div>`; }).join('');
@@ -637,6 +644,50 @@ const INTERNAL_CATEGORIES = [
   'Resource allocation','Strategic planning','Internal marketing','Technology & infrastructure',
   'Team management',
 ];
+
+/* Each category maps to the service families whose task types belong under it,
+ * so choosing a category narrows the task list instead of showing all 80.
+ * A category with no entry here falls back to every family. */
+const CATEGORY_FAMILIES = {
+  // External
+  'Sales & outreach':             ['sales'],
+  'Lead generation':              ['sales'],
+  'Lead qualification':           ['sales'],
+  'Discovery calls':              ['sales'],
+  'Proposals & closing':          ['sales','strategy'],
+  'Client onboarding':            ['client'],
+  'Client communication':         ['client'],
+  'Account management':           ['client'],
+  'Client strategy':              ['strategy'],
+  'Service fulfillment':          ['web','seo','paid','email','automation','design','social','video'],
+  'Content creation for clients': ['editorial','social','video','design'],
+  'Client reporting':             ['reporting'],
+  'Client retention':             ['client'],
+  'Upselling & cross-selling':    ['sales','client'],
+  'Partnership development':      ['sales'],
+  'Customer support':             ['client'],
+  'Client feedback & satisfaction': ['client'],
+  // Internal
+  'Hiring & recruiting':          ['internal'],
+  'Employee onboarding':          ['internal'],
+  'Training & development':       ['internal'],
+  'Internal operations':          ['internal'],
+  'SOPs & process documentation': ['internal'],
+  'Workflow automation':          ['automation','internal'],
+  'Project management':           ['internal'],
+  'Quality assurance':            ['internal'],
+  'Finance & accounting':         ['internal'],
+  'Legal & administration':       ['internal'],
+  'Internal meetings':            ['internal'],
+  'Performance management':       ['internal'],
+  'Resource allocation':          ['internal'],
+  'Strategic planning':           ['strategy','internal'],
+  'Internal marketing':           ['social','editorial','design','video','web','seo','paid','email'],
+  'Technology & infrastructure':  ['automation','web','internal'],
+  'Team management':              ['internal'],
+};
+const familiesForCategory = cat => CATEGORY_FAMILIES[cat] || null;
+
 const categoriesFor = scope => scope === 'internal' ? INTERNAL_CATEGORIES : EXTERNAL_CATEGORIES;
 
 /* Clients and Leads listed separately, spec section 11. Internal work carries no
@@ -659,7 +710,7 @@ function openStart(prefill={}){
   openModal(`<header><h2>Start timer</h2><button class="btn ghost" data-act="close">Close</button></header>
   <div class="body">
     <div class="field"><span>Type of work</span>
-      <div class="seg" id="st-scope">
+      <div class="scope-switch" id="st-scope" data-scope="${scope}"><span class="thumb"></span>
         <button type="button" class="seg-b ${scope==='external'?'on':''}" data-act="scope-pick" data-scope="external">External</button>
         <button type="button" class="seg-b ${scope==='internal'?'on':''}" data-act="scope-pick" data-scope="internal">Internal</button>
       </div>
@@ -858,7 +909,7 @@ async function setStatus(ids, status, reason){
  * product runs with no AI API key. Use Log time for anything not timed live. */
 
 /* ================================================================ shared filter + chart helpers */
-function F(){ return UI.f ||= lsGet('f', {range:'ytd', from:'', to:'', person:'all', client:'all', family:'all'}); }
+function F(){ return UI.f ||= lsGet('f', {range:'ytd', from:'', to:'', person:'all', client:'all', family:'all', scope:'all'}); }
 function setF(p){ Object.assign(F(), p); lsSet('f', F()); render(); }
 function rangeDates(f=F()){
   const t = today(), m = t.slice(0,7);
@@ -877,13 +928,14 @@ function filterBar(opts={person:true, client:true, family:true}){
     <div class="seg">${[['week','Week'],['month','Month'],['last','Last month'],['90','90 days'],['ytd','YTD'],['custom','Custom']].map(([k,l]) => `<button data-f="range" data-v="${k}" class="${f.range===k?'on':''}">${l}</button>`).join('')}</div>
     ${f.range==='custom' ? `<input class="in" type="date" id="f-from" value="${esc(f.from)}" style="width:auto"><input class="in" type="date" id="f-to" value="${esc(f.to)}" style="width:auto">` : ''}
     ${opts.person ? `<select class="in" id="f-person" style="width:auto"><option value="all">Everyone</option>${personOptions(f.person)}</select>` : ''}
+    ${opts.scope === false ? '' : `<select class="in" id="f-scope" style="width:auto">${[['all','Internal and external'],['external','External only'],['internal','Internal only']].map(([v,l]) => `<option value="${v}" ${f.scope===v?'selected':''}>${l}</option>`).join('')}</select>`}
     ${opts.client ? `<select class="in" id="f-client" style="width:auto"><option value="all">All clients</option>${clientOptions(f.client, false)}</select>` : ''}
     ${opts.family ? `<select class="in" id="f-family" style="width:auto"><option value="all">All services</option>${FAMILY_ORDER().map(k => `<option value="${k}" ${f.family===k?'selected':''}>${esc(famName(k))}</option>`).join('')}</select>` : ''}
   </div>`;
 }
 function filteredRows(f=F()){
   const [from, to] = rangeDates(f);
-  return laborRows().filter(r => inRange(r.date, from, to) && (f.person==='all' || r.personId===f.person) && (f.client==='all' || r.clientId===f.client) && (f.family==='all' || r.family===f.family));
+  return laborRows().filter(r => inRange(r.date, from, to) && (f.person==='all' || r.personId===f.person) && (f.scope==='all' || !f.scope || r.scope===f.scope) && (f.client==='all' || r.clientId===f.client) && (f.family==='all' || r.family===f.family));
 }
 function statusChip(s){ return ({draft:`<span class="chip">Draft</span>`, submitted:`<span class="chip warn">Submitted</span>`, approved:`<span class="chip good">Approved</span>`, rejected:`<span class="chip crit">Rejected</span>`})[s] || `<span class="chip">${esc(s)}</span>`; }
 function baseChart(){
@@ -960,7 +1012,7 @@ VIEWS.entries = () => {
   const toApprove = list.filter(e => e.personId !== S.personId && e.status === 'submitted');
   const locked = isLocked(f.month);
   const byDay = groupBy(list, e => e.date);
-  return `<div class="head"><div><h1>Timesheet</h1><p>Every session, who did it, for which client and task. Drafts stay private until you submit them; ${S.settings.approvalMode==='self' ? 'submitting approves them.' : 'your partner approves submitted time before it counts toward payouts.'}</p></div>
+  return `<div class="head"><div><h1>Time Log</h1><p>Every session, who did it, for which client and task. Drafts stay private until you submit them; ${S.settings.approvalMode==='self' ? 'submitting approves them.' : 'your partner approves submitted time before it counts toward payouts.'}</p></div>
     <div class="row">${myDrafts.length ? `<button class="btn pri" data-act="submit-all" ${locked?'disabled':''}>Submit my ${myDrafts.length} drafts</button>` : ''}${toApprove.length && isPartner() ? `<button class="btn pri" data-act="approve-all" ${locked?'disabled':''}>Approve ${toApprove.length} from ${esc(person(toApprove[0].personId).name)}</button>` : ''}<button class="btn" data-act="log">Log time</button></div></div>
   ${locked ? `<div class="note">${monthLabel(f.month)} is locked for payouts. Entries are read-only.</div>` : ''}
   <div class="filters">
@@ -1152,7 +1204,7 @@ VIEWS.me = () => {
   // revenue associated with this person's work: client paid revenue in range × person's share of that client's hours
   const allR = laborRows().filter(r => inRange(r.date, from, to));
   let assoc = 0; for (const [c, rs] of Object.entries(groupBy(rows, r=>r.clientId))){ if (!c || c==='internal' || c==='prospects') continue; const tot = sum(allR.filter(r=>r.clientId===c), r=>r.minutes); const rev = sum(ledgerItems().filter(l => l.clientId===c), l => paidIn(l, from, to)); if (tot) assoc += rev * sum(rs, r=>r.minutes)/tot; }
-  return `<div class="head"><div><h1>${who===S.personId ? 'My dashboard' : esc(person(who).name)+'\'s dashboard'}</h1><p>Your hours, payout estimate and work mix. Speed figures sit next to complexity, revisions and sample size; they're for planning, not scoring.</p></div>
+  return `<div class="head"><div><h1>${who===S.personId ? 'Dashboard' : esc(person(who).name)+'\'s work'}</h1><p>Your hours, payout estimate and work mix. Speed figures sit next to complexity, revisions and sample size; they're for planning, not scoring.</p></div>
     ${isPartner() ? `<select class="in" id="me-person" style="width:auto">${partners().map(id => `<option value="${id}" ${id===who?'selected':''}>${esc(person(id).name)}</option>`).join('')}</select>` : ''}</div>
   <div class="band b4">
     ${band('Today', hm(span(t,t)))}${band('This week', hrs(span(weekStart(t), t))+' h')}${band('This month', hrs(span(m+'-01', t))+' h')}${band(y, hrs(span(y+'-01-01', t))+' h')}
@@ -1877,10 +1929,15 @@ async function saveRules(){
 }
 function onChange(ev){
   if (ev.target.id === 'ed-joint'){ const w = $('#ed-joint-wrap'); if (w) w.hidden = !ev.target.checked; }
-  if (ev.target.id === 'ed-cat' || ev.target.id === 'ed-done'){ /* no recompute needed */ }
+  if (ev.target.id === 'st-cat' || ev.target.id === 'ed-cat'){
+    const tid = ev.target.id === 'st-cat' ? 'st-type' : 'ed-type';
+    const hidden = $('#'+tid), q = $('#'+tid+'-q');
+    if (hidden && q){ hidden.value = ''; q.value = ''; }
+    const wrap = $('#st-other-wrap'); if (wrap && tid === 'st-type') wrap.hidden = true;
+  }
 
   const el = ev.target, id = el.id;
-  if (id === 'f-person') setF({person:el.value}); else if (id === 'f-client') setF({client:el.value}); else if (id === 'f-family') setF({family:el.value});
+  if (id === 'f-person') setF({person:el.value}); else if (id === 'f-client') setF({client:el.value}); else if (id === 'f-family') setF({family:el.value}); else if (id === 'f-scope') setF({scope:el.value});
   else if (id === 'f-from') setF({from:el.value}); else if (id === 'f-to') setF({to:el.value});
   else if (id?.startsWith('tf-')){ UI.tf[id.slice(3)] = el.value; render(); }
   else if (id === 'pm'){ UI.pm = el.value; render(); }

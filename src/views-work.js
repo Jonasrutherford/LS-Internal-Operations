@@ -1,5 +1,5 @@
 /* ================================================================ shared filter + chart helpers */
-function F(){ return UI.f ||= lsGet('f', {range:'ytd', from:'', to:'', person:'all', client:'all', family:'all'}); }
+function F(){ return UI.f ||= lsGet('f', {range:'ytd', from:'', to:'', person:'all', client:'all', family:'all', scope:'all'}); }
 function setF(p){ Object.assign(F(), p); lsSet('f', F()); render(); }
 function rangeDates(f=F()){
   const t = today(), m = t.slice(0,7);
@@ -18,13 +18,14 @@ function filterBar(opts={person:true, client:true, family:true}){
     <div class="seg">${[['week','Week'],['month','Month'],['last','Last month'],['90','90 days'],['ytd','YTD'],['custom','Custom']].map(([k,l]) => `<button data-f="range" data-v="${k}" class="${f.range===k?'on':''}">${l}</button>`).join('')}</div>
     ${f.range==='custom' ? `<input class="in" type="date" id="f-from" value="${esc(f.from)}" style="width:auto"><input class="in" type="date" id="f-to" value="${esc(f.to)}" style="width:auto">` : ''}
     ${opts.person ? `<select class="in" id="f-person" style="width:auto"><option value="all">Everyone</option>${personOptions(f.person)}</select>` : ''}
+    ${opts.scope === false ? '' : `<select class="in" id="f-scope" style="width:auto">${[['all','Internal and external'],['external','External only'],['internal','Internal only']].map(([v,l]) => `<option value="${v}" ${f.scope===v?'selected':''}>${l}</option>`).join('')}</select>`}
     ${opts.client ? `<select class="in" id="f-client" style="width:auto"><option value="all">All clients</option>${clientOptions(f.client, false)}</select>` : ''}
     ${opts.family ? `<select class="in" id="f-family" style="width:auto"><option value="all">All services</option>${FAMILY_ORDER().map(k => `<option value="${k}" ${f.family===k?'selected':''}>${esc(famName(k))}</option>`).join('')}</select>` : ''}
   </div>`;
 }
 function filteredRows(f=F()){
   const [from, to] = rangeDates(f);
-  return laborRows().filter(r => inRange(r.date, from, to) && (f.person==='all' || r.personId===f.person) && (f.client==='all' || r.clientId===f.client) && (f.family==='all' || r.family===f.family));
+  return laborRows().filter(r => inRange(r.date, from, to) && (f.person==='all' || r.personId===f.person) && (f.scope==='all' || !f.scope || r.scope===f.scope) && (f.client==='all' || r.clientId===f.client) && (f.family==='all' || r.family===f.family));
 }
 function statusChip(s){ return ({draft:`<span class="chip">Draft</span>`, submitted:`<span class="chip warn">Submitted</span>`, approved:`<span class="chip good">Approved</span>`, rejected:`<span class="chip crit">Rejected</span>`})[s] || `<span class="chip">${esc(s)}</span>`; }
 function baseChart(){

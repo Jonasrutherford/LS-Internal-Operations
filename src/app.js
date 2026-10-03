@@ -224,9 +224,11 @@ function openModal(html, opts={}){
 }
 function closeModal(){ $('#modal').innerHTML = ''; UI.modal = null; }
 
+/* Grouped into Clients and Leads. Internal never appears: it is a scope, not a
+ * client, and has its own filter. Inactive legacy names only show if already
+ * selected, so historical entries stay editable. */
 function clientOptions(sel, withBlank=true){
-  const act = Object.entries(S.clients).sort((a,b) => (a[1].kind==='internal') - (b[1].kind==='internal') || a[1].name.localeCompare(b[1].name));
-  return (withBlank ? `<option value="">Choose client…</option>` : '') + act.filter(([id,c]) => c.active !== false || id === sel).map(([id,c]) => `<option value="${id}" ${id===sel?'selected':''}>${esc(c.name)}</option>`).join('');
+  return (withBlank ? `<option value="">Choose client…</option>` : '') + partyOptions(sel).replace(/^<option value="">[^<]*<\/option>/, '');
 }
 function personOptions(sel, all=false){ return Object.entries(S.people).filter(([id,p]) => all || p.poolMember || p.active).map(([id,p]) => `<option value="${id}" ${id===sel?'selected':''}>${esc(p.name)}</option>`).join(''); }
 
@@ -237,7 +239,11 @@ function typeCombo(id, value){
 function comboList(id, q){
   const box = $(`[data-combo="${id}"] .list`); q = (q||'').toLowerCase().trim();
   const T = S.taxonomy.types; let html = ''; let first = null;
-  for (const f of FAMILY_ORDER()){
+  /* Narrow to the families that belong under the chosen category. Typing a query
+   * searches everything, so nothing is ever unreachable. */
+  const catEl = id === 'st-type' ? $('#st-cat') : $('#ed-cat');
+  const fams = (!q && catEl?.value) ? familiesForCategory(catEl.value) : null;
+  for (const f of (fams || FAMILY_ORDER())){
     const opts = Object.values(T).filter(t => t.family === f && t.active !== false && (!q || (t.code+' '+t.name+' '+famName(f)+' '+(t.unit||'')).toLowerCase().includes(q))).sort((a,b)=>a.order-b.order);
     if (!opts.length) continue;
     html += `<div class="fam">${esc(famName(f))}</div>` + opts.map(t => { first ||= t.code; return `<div class="opt" data-pick="${id}" data-code="${t.code}"><span>${esc(t.name)}</span><small>${t.code} · per ${esc(t.unit)}</small></div>`; }).join('');
@@ -279,6 +285,50 @@ const INTERNAL_CATEGORIES = [
   'Resource allocation','Strategic planning','Internal marketing','Technology & infrastructure',
   'Team management',
 ];
+
+/* Each category maps to the service families whose task types belong under it,
+ * so choosing a category narrows the task list instead of showing all 80.
+ * A category with no entry here falls back to every family. */
+const CATEGORY_FAMILIES = {
+  // External
+  'Sales & outreach':             ['sales'],
+  'Lead generation':              ['sales'],
+  'Lead qualification':           ['sales'],
+  'Discovery calls':              ['sales'],
+  'Proposals & closing':          ['sales','strategy'],
+  'Client onboarding':            ['client'],
+  'Client communication':         ['client'],
+  'Account management':           ['client'],
+  'Client strategy':              ['strategy'],
+  'Service fulfillment':          ['web','seo','paid','email','automation','design','social','video'],
+  'Content creation for clients': ['editorial','social','video','design'],
+  'Client reporting':             ['reporting'],
+  'Client retention':             ['client'],
+  'Upselling & cross-selling':    ['sales','client'],
+  'Partnership development':      ['sales'],
+  'Customer support':             ['client'],
+  'Client feedback & satisfaction': ['client'],
+  // Internal
+  'Hiring & recruiting':          ['internal'],
+  'Employee onboarding':          ['internal'],
+  'Training & development':       ['internal'],
+  'Internal operations':          ['internal'],
+  'SOPs & process documentation': ['internal'],
+  'Workflow automation':          ['automation','internal'],
+  'Project management':           ['internal'],
+  'Quality assurance':            ['internal'],
+  'Finance & accounting':         ['internal'],
+  'Legal & administration':       ['internal'],
+  'Internal meetings':            ['internal'],
+  'Performance management':       ['internal'],
+  'Resource allocation':          ['internal'],
+  'Strategic planning':           ['strategy','internal'],
+  'Internal marketing':           ['social','editorial','design','video','web','seo','paid','email'],
+  'Technology & infrastructure':  ['automation','web','internal'],
+  'Team management':              ['internal'],
+};
+const familiesForCategory = cat => CATEGORY_FAMILIES[cat] || null;
+
 const categoriesFor = scope => scope === 'internal' ? INTERNAL_CATEGORIES : EXTERNAL_CATEGORIES;
 
 /* Clients and Leads listed separately, spec section 11. Internal work carries no
@@ -301,7 +351,7 @@ function openStart(prefill={}){
   openModal(`<header><h2>Start timer</h2><button class="btn ghost" data-act="close">Close</button></header>
   <div class="body">
     <div class="field"><span>Type of work</span>
-      <div class="seg" id="st-scope">
+      <div class="scope-switch" id="st-scope" data-scope="${scope}"><span class="thumb"></span>
         <button type="button" class="seg-b ${scope==='external'?'on':''}" data-act="scope-pick" data-scope="external">External</button>
         <button type="button" class="seg-b ${scope==='internal'?'on':''}" data-act="scope-pick" data-scope="internal">Internal</button>
       </div>

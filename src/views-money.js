@@ -468,6 +468,7 @@ async function onClick(ev){
     case 'scope-pick': {
       const sc = a.dataset.scope;
       UI.startScope = sc;
+      const sw = $('#st-scope'); if (sw) sw.dataset.scope = sc;
       document.querySelectorAll('#st-scope .seg-b').forEach(b => b.classList.toggle('on', b.dataset.scope === sc));
       $('#st-fields').innerHTML = startFields(sc, {});
       $('#st-err').textContent = '';
@@ -545,10 +546,15 @@ async function saveRules(){
 }
 function onChange(ev){
   if (ev.target.id === 'ed-joint'){ const w = $('#ed-joint-wrap'); if (w) w.hidden = !ev.target.checked; }
-  if (ev.target.id === 'ed-cat' || ev.target.id === 'ed-done'){ /* no recompute needed */ }
+  if (ev.target.id === 'st-cat' || ev.target.id === 'ed-cat'){
+    const tid = ev.target.id === 'st-cat' ? 'st-type' : 'ed-type';
+    const hidden = $('#'+tid), q = $('#'+tid+'-q');
+    if (hidden && q){ hidden.value = ''; q.value = ''; }
+    const wrap = $('#st-other-wrap'); if (wrap && tid === 'st-type') wrap.hidden = true;
+  }
 
   const el = ev.target, id = el.id;
-  if (id === 'f-person') setF({person:el.value}); else if (id === 'f-client') setF({client:el.value}); else if (id === 'f-family') setF({family:el.value});
+  if (id === 'f-person') setF({person:el.value}); else if (id === 'f-client') setF({client:el.value}); else if (id === 'f-family') setF({family:el.value}); else if (id === 'f-scope') setF({scope:el.value});
   else if (id === 'f-from') setF({from:el.value}); else if (id === 'f-to') setF({to:el.value});
   else if (id?.startsWith('tf-')){ UI.tf[id.slice(3)] = el.value; render(); }
   else if (id === 'pm'){ UI.pm = el.value; render(); }

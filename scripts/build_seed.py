@@ -144,7 +144,11 @@ CL = [
  ('internal','Lucid Studio (internal)',[],None),
 ]
 clients = {c[0]: dict(name=c[1], aliases=c[2],
-    active=c[0] not in ('dawn','ssi'),
+    # Active set is the eight agreed clients. Legacy names keep their history but
+    # no longer appear in pickers or filters, spec section 48.
+    # The eight agreed clients, plus the leads bucket and the internal marker.
+    # Legacy names keep their history but leave the pickers, spec section 48.
+    active=c[0] in ('dk','equipt','em','terranova','sos','yourhonor','integrita','mycare','prospects','internal'),
     kind='internal' if c[0]=='internal' else ('lead' if c[0]=='prospects' else 'client'),
     # Two brand hexes per client so charts read on either theme, Carter's answer 4.
     brandLight=None, brandDark=None) for c in CL}
