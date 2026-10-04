@@ -49,8 +49,10 @@ export async function createAccount(formData: FormData) {
 
   // With email confirmation switched off, signUp returns a session and the person
   // is already in. With it on, there is no session and they must confirm by email.
+  // Accounts are confirmed by the database on creation, so sign straight in.
   if (!data.session) {
-    redirect(`/sign-in?notice=${encodeURIComponent('Account created. Check your email to confirm it, then sign in.')}`);
+    const { error: e2 } = await supabase.auth.signInWithPassword({ email, password });
+    if (e2) redirect(`/sign-in?error=${encodeURIComponent(e2.message)}&mode=new`);
   }
 
   revalidatePath('/', 'layout');
