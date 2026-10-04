@@ -290,7 +290,8 @@ export function Heatmap({ rows, cols, data, format, rowLabelWidth = 120 }: {
           </g>
         ))}
         {cols.map((c, j) => j % every === 0 && (
-          <text key={c.key} x={rowLabelWidth + j * cw + cw / 2} y={rows.length * ch + 16} textAnchor="middle" className="axis">{c.label}</text>
+          <text key={c.key} x={rowLabelWidth + j * cw + cw / 2} y={rows.length * ch + 16} textAnchor="middle" className="axis">
+            {c.label.length * 6.2 > cw * every - 6 ? c.label.slice(0, Math.max(3, Math.floor((cw * every - 6) / 6.2) - 1)) + '…' : c.label}</text>
         ))}
       </svg>
       <TipBox tip={tip} />

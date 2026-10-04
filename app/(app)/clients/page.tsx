@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { requireAdmin } from '@/lib/auth';
 import { loadCatalog, loadEntries, loadFinance } from '@/lib/data';
-import { addDays, EPOCH, laDate, resolveRange } from '@/lib/time';
+import { EPOCH, laDate, resolveRange } from '@/lib/time';
 import { clientEconomics } from '@/lib/economics';
 import { counts, entrySeconds } from '@/lib/work';
 import { CONTRACT_TYPE_LABEL } from '@/lib/finance';
@@ -111,19 +111,18 @@ export default async function ClientsPage({ searchParams }: { searchParams: Prom
             </tbody>
           </table></div>
         ) : <div className="empty"><p>No client activity in this range.</p></div>}
-        <div className="panel-foot">Labor rate: {money(econ.payoutTotal)} in partner payouts over {econ.totalHours.toFixed(1)} logged hours (internal and external). Payout rules are on Payouts / Expenses.</div>
+        <div className="panel-foot">Labor rate: {money(econ.payoutTotal)} in partner payouts over {econ.totalHours.toFixed(1)} logged hours (internal and external){econ.excludedMonths ? `, from the months in this range that have logged time; ${econ.excludedMonths} month${econ.excludedMonths === 1 ? '' : 's'} without logged time are left out` : ''}. {econ.totalHours < 20 && econ.totalHours > 0 ? 'With this little time logged the rate is volatile. ' : ''}Payout rules are on Payouts / Expenses.</div>
       </section>
 
       {mixClients.length > 0 && lines.length > 0 && (
         <section className="panel">
           <div className="panel-head"><div><h2>Where client hours go</h2><p>Hours per client by service line, or by category where a task has no service line.</p></div><HeatLegend /></div>
           <div className="panel-body">
-            <Heatmap format="hours" rowLabelWidth={170} rows={mixClients.map((r) => ({ key: r.id, label: r.name }))} cols={lines.map((l) => ({ key: l, label: l.length > 12 ? l.slice(0, 11) + '…' : l }))} data={mix} />
+            <Heatmap format="hours" rowLabelWidth={170} rows={mixClients.map((r) => ({ key: r.id, label: r.name }))} cols={lines.map((l) => ({ key: l, label: l }))} data={mix} />
             <p className="muted small" style={{ marginTop: 8 }}>Columns: {lines.join(', ')}.</p>
           </div>
         </section>
       )}
-      <p className="muted small">Data through {addDays(laDate(), 0)}.</p>
     </div>
   );
 }

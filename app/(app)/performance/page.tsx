@@ -194,7 +194,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
             <div className="panel-body">
               <Heatmap format="hours" rowLabelWidth={110}
                 rows={personRows.filter((r) => r.secs > 0).map((r) => ({ key: r.p.id, label: r.p.name }))}
-                cols={topCats.map((id) => ({ key: id, label: catName(id).split(' ')[0] }))}
+                cols={topCats.map((id) => ({ key: id, label: catName(id) }))}
                 data={heat} />
               <p className="muted small" style={{ marginTop: 8 }}>Columns, left to right: {topCats.map(catName).join(', ')}.</p>
             </div>

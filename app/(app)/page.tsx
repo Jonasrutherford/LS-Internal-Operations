@@ -8,7 +8,7 @@ import { describe } from '@/lib/describe';
 import { duration, hours, money, pct } from '@/lib/format';
 import { goalPace, isReceivable, paidIn, total } from '@/lib/finance';
 import EntryList from '@/components/EntryList';
-import { ResumeButton, StartButton } from '@/components/log/buttons';
+import { ResumeButton } from '@/components/log/buttons';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 
@@ -68,7 +68,6 @@ export default async function Dashboard() {
           <h1>{greeting()}, {me.name}</h1>
           <p className="lede">What is happening at Lucid Studio right now.</p>
         </div>
-        <div className="actions"><StartButton className="btn primary lg" /></div>
       </div>
 
       <div className="kpis">

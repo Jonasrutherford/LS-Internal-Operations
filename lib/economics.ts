@@ -31,10 +31,14 @@ export interface ClientRow {
 
 export function clientEconomics(fin: Finance, entries: TimeEntry[], catalog: Catalog, from: string, to: string) {
   const inRange = entries.filter((e) => counts(e) && laDate(e.started_at) >= from && laDate(e.started_at) <= to);
-  const totalHours = inRange.reduce((a, e) => a + entrySeconds(e), 0) / 3600;
+  // Price labor only from months that have logged time. A month with revenue but no
+  // hours (before the logging baseline, for example) says nothing about hourly cost.
   const payouts = payoutsForRange(fin, entries, catalog, from, to);
-  const payoutTotal = r2(payouts.reduce((a, p) => a + p.pool, 0));
+  const counted = payouts.filter((p) => Object.values(p.hours).reduce((a, h) => a + h, 0) > 0);
+  const totalHours = counted.reduce((a, p) => a + Object.values(p.hours).reduce((x, h) => x + h, 0), 0);
+  const payoutTotal = r2(counted.reduce((a, p) => a + p.pool, 0));
   const rate = totalHours > 0 ? payoutTotal / totalHours : null;
+  const excludedMonths = payouts.length - counted.length;
 
   const rows: ClientRow[] = catalog.clients.map((c) => {
     const ev = fin.billing.filter((b) => b.client_id === c.id);
@@ -53,5 +57,5 @@ export function clientEconomics(fin: Finance, entries: TimeEntry[], catalog: Cat
     };
   }).filter((r) => r.paid || r.recognized || r.hours || r.ar);
 
-  return { rows: rows.sort((a, b) => b.paid - a.paid), rate, payoutTotal, totalHours, payouts };
+  return { rows: rows.sort((a, b) => b.paid - a.paid), rate, payoutTotal, totalHours, payouts, excludedMonths };
 }
