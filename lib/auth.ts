@@ -11,7 +11,7 @@ export async function currentPerson(): Promise<Person | null> {
 
   const { data } = await supabase
     .from('people')
-    .select('id, auth_user_id, name, role, active')
+    .select('id, auth_user_id, name, email, role, title, weekly_capacity_hours, legacy_key, active')
     .eq('auth_user_id', user.id)
     .eq('active', true)
     .maybeSingle();

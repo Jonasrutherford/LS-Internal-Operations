@@ -1,95 +1,48 @@
-import type { Scope, Unit } from './types';
+// What a person may pick when logging. One rule, used by every form and filter:
+// Internal shows only internal and both; External shows only external and both,
+// narrowed to the relationship (client, prospect, partner) being worked on.
+// The database trigger check_time_entry enforces the same rule on write.
 
-export interface SeedTaskType {
-  code: string;
-  name: string;
-  scope: Scope;
-  unit: Unit | null;
-  parent_code: string | null;
-  quick_start: boolean;
+import type { Category, EntityKind, TaskType, WorkType } from './types';
+
+export const fitsWorkType = (eligibility: string, wt: WorkType) =>
+  eligibility === 'both' || eligibility === wt;
+
+export function categoriesFor(
+  categories: Category[], wt: WorkType, kind: EntityKind | null,
+): Category[] {
+  return categories
+    .filter((c) => c.active && fitsWorkType(c.eligibility, wt))
+    .filter((c) => wt === 'internal' || (kind != null && c.contexts.includes(kind)))
+    .sort((a, b) => a.sort_order - b.sort_order);
 }
 
-/** External categories, section 17 of the V1 spec.
- *  Service Fulfillment covers the actual delivery work: web design, SEO,
- *  paid ads, social media and other client service delivery. */
-export const EXTERNAL_CATEGORIES: ReadonlyArray<[string, string]> = [
-  ['sales_outreach', 'Sales & Outreach'],
-  ['lead_generation', 'Lead Generation'],
-  ['lead_qualification', 'Lead Qualification'],
-  ['discovery_calls', 'Discovery Calls'],
-  ['proposals_closing', 'Proposals & Closing'],
-  ['client_onboarding', 'Client Onboarding'],
-  ['client_communication', 'Client Communication'],
-  ['account_management', 'Account Management'],
-  ['client_strategy', 'Client Strategy'],
-  ['service_fulfillment', 'Service Fulfillment'],
-  ['content_creation_clients', 'Content Creation for Clients'],
-  ['client_reporting', 'Client Reporting'],
-  ['client_retention', 'Client Retention'],
-  ['upsell_cross_sell', 'Upselling & Cross-Selling'],
-  ['partnership_development', 'Partnership Development'],
-  ['customer_support', 'Customer Support'],
-  ['client_feedback', 'Client Feedback & Satisfaction'],
-];
-
-/** Internal categories, section 18. Internal Marketing means Lucid Studio's own marketing. */
-export const INTERNAL_CATEGORIES: ReadonlyArray<[string, string]> = [
-  ['hiring_recruiting', 'Hiring & Recruiting'],
-  ['employee_onboarding', 'Employee Onboarding'],
-  ['training_development', 'Training & Development'],
-  ['internal_operations', 'Internal Operations'],
-  ['sops_process_docs', 'SOPs & Process Documentation'],
-  ['workflow_automation', 'Workflow Automation'],
-  ['project_management', 'Project Management'],
-  ['quality_assurance', 'Quality Assurance'],
-  ['finance_accounting', 'Finance & Accounting'],
-  ['legal_admin', 'Legal & Administration'],
-  ['internal_meetings', 'Internal Meetings'],
-  ['performance_management', 'Performance Management'],
-  ['resource_allocation', 'Resource Allocation'],
-  ['strategic_planning', 'Strategic Planning'],
-  ['internal_marketing', 'Internal Marketing'],
-  ['technology_infrastructure', 'Technology & Infrastructure'],
-  ['team_management', 'Team Management'],
-];
-
-/** Discrete deliverables, section 26. These are the only task types that carry a
- *  unit, and the only ones offered in Quick Start, section 27. Units are derived
- *  from the task type and are never hand-editable.
- *
- *  Calls, website builds, strategy and general meetings are deliberately absent:
- *  they are not discrete, so they are never asked for a count.
- *
- *  TODO: the spec names these as examples rather than an exhaustive list. Admins can
- *  add more under System Admin, section 37. Seeded set kept deliberately small. */
-export const DELIVERABLE_TYPES: ReadonlyArray<SeedTaskType> = [
-  { code: 'email_outreach', name: 'Email Outreach', scope: 'external', unit: 'emails', parent_code: 'sales_outreach', quick_start: true },
-  { code: 'social_post', name: 'Social Post', scope: 'external', unit: 'posts', parent_code: 'content_creation_clients', quick_start: true },
-  { code: 'graphic_design', name: 'Graphic Design', scope: 'external', unit: 'graphics', parent_code: 'content_creation_clients', quick_start: true },
-  { code: 'reel', name: 'Reel', scope: 'external', unit: 'reels', parent_code: 'content_creation_clients', quick_start: true },
-  { code: 'client_report', name: 'Client Report', scope: 'external', unit: 'reports', parent_code: 'client_reporting', quick_start: true },
-];
-
-/** The sentinel code for Other. Selecting it reveals a single field for a new task
- *  name. The field never shows otherwise, section 19. */
-export const OTHER_CODE = 'other';
-
-export function seedTaskTypes(): SeedTaskType[] {
-  const categories: SeedTaskType[] = [
-    ...EXTERNAL_CATEGORIES.map(([code, name]) => ({
-      code, name, scope: 'external' as Scope, unit: null, parent_code: null, quick_start: false,
-    })),
-    ...INTERNAL_CATEGORIES.map(([code, name]) => ({
-      code, name, scope: 'internal' as Scope, unit: null, parent_code: null, quick_start: false,
-    })),
-  ];
-  const other: SeedTaskType[] = (['external', 'internal'] as Scope[]).map((scope) => ({
-    code: `${OTHER_CODE}_${scope}`,
-    name: 'Other',
-    scope,
-    unit: null,
-    parent_code: null,
-    quick_start: false,
-  }));
-  return [...categories, ...DELIVERABLE_TYPES, ...other];
+export function tasksFor(taskTypes: TaskType[], categoryId: string, wt: WorkType): TaskType[] {
+  return taskTypes
+    .filter((t) => t.active && t.category_id === categoryId && fitsWorkType(t.eligibility, wt))
+    .sort((a, b) => a.sort_order - b.sort_order);
 }
+
+/** Categories a filter should list for a work type, regardless of relationship. */
+export function categoriesForFilter(categories: Category[], wt: WorkType | 'all'): Category[] {
+  return categories
+    .filter((c) => wt === 'all' || fitsWorkType(c.eligibility, wt))
+    .sort((a, b) => a.sort_order - b.sort_order);
+}
+
+/** Expected minutes for one finished piece of work. Deliverable tasks scale by count. */
+export function expectedMinutes(t: TaskType | undefined, qty: number | null): number | null {
+  if (!t || t.expected_minutes == null) return null;
+  if (t.has_deliverable) return qty && qty > 0 ? Number(t.expected_minutes) * qty : null;
+  return Number(t.expected_minutes);
+}
+
+export function unitLabel(unit: string | null, n = 2) {
+  if (!unit) return '';
+  if (n === 1) return unit;
+  if (unit.endsWith('s')) return unit;
+  if (/(sh|ch|x)$/.test(unit)) return unit + 'es';
+  return unit + 's';
+}
+
+export const CONTEXT_ORDER: EntityKind[] = ['client', 'prospect', 'partner'];
