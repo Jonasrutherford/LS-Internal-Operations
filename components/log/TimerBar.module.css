@@ -1,0 +1,19 @@
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; flex-wrap: wrap; }
+.actions { display: flex; gap: 8px; }
+.idle, .live { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.idle b, .what b { display: block; font-family: var(--f-display); font-weight: 600; font-size: 14px; }
+.idle span, .what span { display: block; font-size: 12px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
+.what { min-width: 0; }
+.live { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 8px 6px 14px; }
+.clock { font-family: var(--f-display); font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; padding: 4px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); }
+.paused .clock { background: var(--warn-soft); color: var(--warn); }
+.dotIdle, .dotLive, .dotPaused { width: 10px; height: 10px; border-radius: 999px; flex: none; }
+.dotIdle { background: var(--ink-4); }
+.dotLive { background: var(--accent); box-shadow: 0 0 0 0 var(--accent); animation: pulse 1.6s infinite; }
+.dotPaused { background: var(--warn); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(242, 91, 2, .45); } 70% { box-shadow: 0 0 0 8px rgba(242, 91, 2, 0); } 100% { box-shadow: 0 0 0 0 rgba(242, 91, 2, 0); } }
+@media (max-width: 760px) {
+  .idle span { display: none; }
+  .what span { max-width: 22ch; }
+  .clock { font-size: 16px; }
+}

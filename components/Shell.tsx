@@ -1,76 +1,83 @@
-import type { Person } from '@/lib/types';
+import type { Catalog, Person, TimeEntry } from '@/lib/types';
 import { signOut } from '@/app/actions/auth';
-import NavLink from './NavLink';
+import Logo from './Logo';
+import SideNav, { type NavGroup } from './SideNav';
+import ThemeToggle from './ThemeToggle';
+import { LogProvider } from './log/LogProvider';
+import TimerBar from './log/TimerBar';
 import s from './Shell.module.css';
 
-/** Information architecture from section 31. The Finances group is not rendered at
- *  all for employees, and every page behind it independently calls requireAdmin,
- *  so hiding the link is a convenience rather than the control. */
-const WORK = [
-  { href: '/', label: 'Dashboard' },
-  { href: '/time-log', label: 'Time Log' },
-  { href: '/tasks', label: 'Tasks' },
-];
-
-const FINANCES = [
-  { href: '/revenue', label: 'Revenue' },
-  { href: '/expenses', label: 'Expenses / Payouts' },
-  { href: '/contracts', label: 'Contracts' },
-  { href: '/projections', label: 'Company Projections' },
-];
+/** Navigation. Finances and System Admin are not rendered for employees, and every
+ *  page behind them calls requireAdmin() and is backed by row-level security, so the
+ *  hidden link is a convenience, not the control. */
+function groups(isAdmin: boolean): NavGroup[] {
+  const g: NavGroup[] = [
+    { label: 'Work', links: [
+      { href: '/', label: 'Dashboard' },
+      { href: '/log', label: 'Start / Log' },
+      { href: '/time-log', label: 'Time Log' },
+      { href: '/tasks', label: 'Tasks' },
+    ] },
+    { label: 'Insight', links: [
+      { href: '/performance', label: 'Performance' },
+      ...(isAdmin ? [{ href: '/projections', label: 'Company Projections' }] : []),
+    ] },
+  ];
+  if (isAdmin) {
+    g.push({ label: 'Finances', links: [
+      { href: '/revenue', label: 'Revenue' },
+      { href: '/clients', label: 'Clients' },
+      { href: '/expenses', label: 'Payouts / Expenses' },
+    ] });
+  }
+  g.push({ label: 'System', links: [
+    { href: '/settings', label: 'Settings' },
+    ...(isAdmin ? [{ href: '/admin', label: 'System Admin' }] : []),
+  ] });
+  return g;
+}
 
 export default function Shell({
-  person,
-  children,
-}: {
-  person: Person;
-  children: React.ReactNode;
-}) {
+  person, catalog, running, children,
+}: { person: Person; catalog: Catalog; running: TimeEntry | null; children: React.ReactNode }) {
   const isAdmin = person.role === 'admin';
-
   return (
-    <div className={s.shell}>
-      <aside className={s.side}>
-        <div className={s.brand}>
-          <svg className={s.mark} viewBox="0 0 24 24" aria-hidden="true" fill="none">
-            <path d="M12 2 4 7v10l8 5 8-5V7z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-            <path d="M12 7v10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-          <b>Lucid OS</b>
-        </div>
-
-        <nav className={s.nav}>
-          <div className={s.group}>
-            <div className={s.groupLabel}>Work</div>
-            {WORK.map((l) => <NavLink key={l.href} {...l} />)}
-          </div>
-
-          {isAdmin && (
-            <div className={s.group}>
-              <div className={s.groupLabel}>Finances</div>
-              {FINANCES.map((l) => <NavLink key={l.href} {...l} />)}
+    <LogProvider catalog={catalog} running={running} me={person}>
+      <div className={s.shell}>
+        <SideNav
+          groups={groups(isAdmin)}
+          brand={
+            <div className={s.brand}>
+              <Logo className={s.logo} />
+              <div>
+                <b>LS Command</b>
+                <span>Lucid Studio</span>
+              </div>
             </div>
-          )}
-
-          <div className={s.group}>
-            <div className={s.groupLabel}>System</div>
-            <NavLink href="/settings" label="Settings" />
-            {isAdmin && <NavLink href="/admin" label="System Admin" />}
-          </div>
-        </nav>
-
-        <div className={s.foot}>
-          <div className={s.who}>
-            <b>{person.name}</b>
-            <span className={s.role}>{person.role}</span>
-          </div>
-          <form action={signOut}>
-            <button className={s.out} type="submit">Sign out</button>
-          </form>
+          }
+          foot={
+            <div className={s.foot}>
+              <div className={s.who}>
+                <span className={s.avatar} aria-hidden>{person.name.slice(0, 1).toUpperCase()}</span>
+                <div>
+                  <b>{person.name}</b>
+                  <span>{isAdmin ? 'Admin' : 'Team'}{person.title ? ` · ${person.title}` : ''}</span>
+                </div>
+              </div>
+              <div className={s.footActions}>
+                <ThemeToggle />
+                <form action={signOut}><button className={s.out} type="submit">Sign out</button></form>
+              </div>
+            </div>
+          }
+        />
+        <div className={s.main}>
+          <header className={s.top}>
+            <TimerBar />
+          </header>
+          <main>{children}</main>
         </div>
-      </aside>
-
-      <main className={s.main}>{children}</main>
-    </div>
+      </div>
+    </LogProvider>
   );
 }
