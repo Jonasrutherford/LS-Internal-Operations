@@ -22,7 +22,14 @@ export async function currentPerson(): Promise<Person | null> {
 /** Guard for any page, server action or route handler that needs a signed-in person. */
 export async function requirePerson(): Promise<Person> {
   const person = await currentPerson();
-  if (!person) redirect('/sign-in');
+  if (!person) {
+    // Signed in, but no active LS Command profile: say so instead of looping.
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    redirect(user
+      ? `/sign-in?error=${encodeURIComponent('Your account has no active LS Command profile. Ask an admin to add you in System Admin, Team.')}`
+      : '/sign-in');
+  }
   return person;
 }
 

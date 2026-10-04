@@ -33,7 +33,7 @@ export function categoriesForFilter(categories: Category[], wt: WorkType | 'all'
 /** Expected minutes for one finished piece of work. Deliverable tasks scale by count. */
 export function expectedMinutes(t: TaskType | undefined, qty: number | null): number | null {
   if (!t || t.expected_minutes == null) return null;
-  if (t.has_deliverable) return qty && qty > 0 ? Number(t.expected_minutes) * qty : null;
+  if (t.has_deliverable) return qty && qty > 0 ? Math.round(Number(t.expected_minutes) * qty * 100) / 100 : null;
   return Number(t.expected_minutes);
 }
 

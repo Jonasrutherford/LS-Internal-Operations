@@ -1,5 +1,10 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { signIn, createAccount } from '@/app/actions/auth';
+import Logo from '@/components/Logo';
+import s from './signin.module.css';
+
+export const metadata: Metadata = { title: 'Sign in' };
 
 export default async function SignInPage({
   searchParams,
@@ -10,62 +15,50 @@ export default async function SignInPage({
   const creating = mode === 'new';
 
   const field = (label: string, name: string, type: string, autoComplete: string) => (
-    <label style={{ display: 'grid', gap: 5 }}>
-      <span className="eyebrow">{label}</span>
+    <label className="field">
+      <span>{label}</span>
       <input type={type} name={name} autoComplete={autoComplete} required />
     </label>
   );
 
   return (
-    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
-      <div style={{ width: '100%', maxWidth: 360, display: 'grid', gap: 14 }}>
+    <div className={s.wrap}>
+      <div className={s.brandSide}>
+        <Logo className={s.logo} />
         <div>
-          <div className="eyebrow">Lucid Studio</div>
-          <h1 style={{ marginTop: 4 }}>Lucid OS</h1>
+          <h1 className={s.title}>LS Command</h1>
+          <p className={s.tag}>Lucid Studio&apos;s operating command center.</p>
         </div>
+        <p className={s.foot}>Time, clients, revenue and the work behind them, in one place.</p>
+      </div>
+      <div className={s.formSide}>
+        <div className={s.card}>
+          {error && <div className="notice crit" role="alert">{error}</div>}
+          {notice && <div className="notice good" role="status">{notice}</div>}
 
-        {error && (
-          <p role="alert" className="panel" style={{ margin: 0, padding: '10px 12px', color: 'var(--crit)', fontSize: 13 }}>
-            {error}
-          </p>
-        )}
-        {notice && (
-          <p role="status" className="panel" style={{ margin: 0, padding: '10px 12px', fontSize: 13 }}>
-            {notice}
-          </p>
-        )}
-
-        {creating ? (
-          <form action={createAccount} className="panel" style={{ padding: 20, display: 'grid', gap: 14 }}>
-            <div>
-              <h2>Set your password</h2>
-              <p className="muted" style={{ margin: '4px 0 0', fontSize: 13 }}>
-                First time only. Use your lucidstudiollc.com address.
-              </p>
-            </div>
-            {field('Work email', 'email', 'email', 'email')}
-            {field('Choose a password', 'password', 'password', 'new-password')}
-            {field('Confirm password', 'confirm', 'password', 'new-password')}
-            <button type="submit" data-variant="primary">Create account</button>
-            <Link href="/sign-in" style={{ color: 'var(--accent)', fontSize: 13, textAlign: 'center' }}>
-              I already have a password
-            </Link>
-          </form>
-        ) : (
-          <>
-            <form action={signIn} className="panel" style={{ padding: 20, display: 'grid', gap: 14 }}>
+          {creating ? (
+            <form action={createAccount} className="stack" style={{ gap: 14 }}>
+              <div>
+                <h2>Set your password</h2>
+                <p className="muted small">First time only. Use your lucidstudiollc.com address.</p>
+              </div>
+              {field('Work email', 'email', 'email', 'email')}
+              {field('Choose a password', 'password', 'password', 'new-password')}
+              {field('Confirm password', 'confirm', 'password', 'new-password')}
+              <button type="submit" className="btn primary lg">Create account</button>
+              <Link href="/sign-in" className="link small" style={{ textAlign: 'center' }}>I already have a password</Link>
+            </form>
+          ) : (
+            <form action={signIn} className="stack" style={{ gap: 14 }}>
+              <div><h2>Sign in</h2><p className="muted small">Lucid Studio team only.</p></div>
               {field('Email', 'email', 'email', 'email')}
               {field('Password', 'password', 'password', 'current-password')}
               <input type="hidden" name="next" value={next ?? '/'} />
-              <button type="submit" data-variant="primary">Sign in</button>
+              <button type="submit" className="btn primary lg">Sign in</button>
+              <Link href="/sign-in?mode=new" className="link small" style={{ textAlign: 'center' }}>First time here? Set your password</Link>
             </form>
-
-            <Link href="/sign-in?mode=new" className="panel"
-                  style={{ padding: '12px 14px', fontSize: 13, textAlign: 'center', color: 'var(--accent)' }}>
-              First time here? Set your password
-            </Link>
-          </>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
