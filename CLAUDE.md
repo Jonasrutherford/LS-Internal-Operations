@@ -1,35 +1,30 @@
 # LS Command: notes for Claude
 
-GitHub is the source of truth. Vercel is production. Claude Artifacts are not used
-for production and are not a deployment target.
+GitHub is the source of truth. Vercel (`lucid-os-original`) is production. Supabase
+project `sakwqqljepiflbbqbyuj` is the only data store. Claude Artifacts and browser
+storage are not used.
 
 - Next.js (App Router, TypeScript) + Supabase. `npm run dev`, `npm run build`, `npm test`.
+- Product name is LS Command. Lucid Studio is the company. Never "Lucid OS" in the UI.
 - Authorization is enforced in the database. Every table has row-level security in
-  `supabase/migrations/`. `requireAdmin()` in `lib/auth.ts` guards Finances and System
-  Admin pages, and `assertAdmin()` guards server actions. Hiding a nav link is never
-  the control.
-- Finance math lives in `lib/finance.ts` and is covered by `tests/finance.test.mjs`.
-  Run `npm test` after touching it.
-- Never store a derived monthly figure as a contract. Billing frequency is recorded
-  exactly as agreed; monthly equivalents are computed for analytics only.
-- Never invent financial values, time entries or task estimates. Show N/A or
-  Insufficient Data instead.
-- Every change to money or to someone else's time writes an audit row through
-  `audit()` in `lib/auth.ts`.
-- Payouts have two regimes: fixed shares of revenue through 2026-09 (Carter 40%,
-  Jonas 30%), then a 65% pool split by share of approved hours from 2026-10.
-  `hoursBasedFrom` and `fixedSplit` in settings control this. Never recompute an
-  old month under today's rules.
-- Removed for V1 and not to be reintroduced: ClickUp, AI Quick Log, Switch,
-  Review Queue, compensation models, manual task units.
-- Style: plain copy, no em dashes, colors only via the CSS tokens in
-  `app/globals.css`. The old yellow accent is retired; the accent is Lucid orange.
-
-## Still on the old architecture
-
-`src/`, `dist/`, `scripts/build.py` and `tests/payouts.test.js` are the previous
-single-file Claude artifact build. They are kept until the Next.js app reaches
-feature parity and the team cuts over, then removed. Do not add to them.
-
-`tests/payouts.test.js` cannot run here: it needs the spreadsheets in `data/`, which
-are deliberately kept out of git.
+  `supabase/migrations/`. `requireAdmin()` guards admin pages and `assertAdmin()`
+  guards admin server actions. Hiding a nav link is never the control.
+- Work taxonomy rules live in two places that must agree: `lib/taxonomy.ts` (what
+  the UI offers) and the `check_time_entry` trigger (what the database accepts).
+- Clients, prospects and partners are separate. Internal work has no relationship.
+  Never add a fake client for internal work or leads.
+- Finance math is in `lib/finance.ts` and `lib/economics.ts`, covered by
+  `tests/finance.test.mjs`. Run `npm test` after touching them.
+- Never invent financial values, time entries or task estimates. Show N/A or an
+  explained empty state instead.
+- Every change to money, the taxonomy or someone else's time writes an audit row
+  through `audit()` in `lib/auth.ts`.
+- Payouts: fixed shares of paid revenue through 2026-09, then a 65% pool split by
+  logged hours from 2026-10 (`app_settings`). Never recompute an old month under
+  newer rules.
+- Not to be reintroduced: ClickUp, AI Quick Log, Switch Task, Review Queue,
+  approvals, compensation models, billable and payout-hour checkboxes, typed units.
+- Style: plain copy, no em dashes, colors only via the tokens in `app/globals.css`.
+  Headings Outfit, body Nunito. Heatmaps use the yellow to tangerine ramp.
+- Destructive SQL through the Supabase MCP waits for a human confirmation. Prefer
+  moving or archiving over dropping.
